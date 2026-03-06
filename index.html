@@ -488,6 +488,8 @@ const LS='despesas_v2';
 
 let txns=[], bankData={CGD:null,Santander:null,Extra:null};
 let tokenClient=null, accessToken=null, tokenExpiry=0;
+const HS = 'despesas_history_v1';
+let _charts = {};
 
 function getLearned(){ try{ return JSON.parse(localStorage.getItem(LS)||'{}'); }catch{ return {}; } }
 function saveLearned(m){ try{ localStorage.setItem(LS,JSON.stringify(m)); }catch{} }
