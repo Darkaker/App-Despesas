@@ -338,6 +338,12 @@ const RULES = [
   [/comissao.*santander|comissão.*santander/i,'Comissões Santander'],
   [/\bppr\b|save.*grow/i,'PPR Save & Grow NO'],
   [/trf\.|transferência de |transf |mb way|mbway|levantamento/i,'Ignorar / Transferência'],
+  // Reembolsos seguros / ADSE
+  [/reembolso.*adse|adse.*reemb|adse/i,'Reembolsos Seguros/ADSE'],
+  [/reembolso.*seguro|seguro.*reemb|fidelidade.*reemb|ocidental.*reemb|aegon.*reemb/i,'Reembolsos Seguros/ADSE'],
+  // Reembolsos empresa (combustível) - créditos que deduzem da categoria
+  [/reembolso.*combust|reimb.*fuel|nota.*credito.*combust/i,'Combustível'],
+  [/reembolso.*km|km.*reemb|reembolso.*viagem/i,'Combustível'],
 ];
 
 // ── LEARNING ─────────────────────────────────────────────────
@@ -426,11 +432,50 @@ async function writeToSheet(totalsObj){
   const year=document.getElementById('sel-year').value;
   const tab=`Despesas vs Receitas ${year}`;
   const col=MONTH_COL[month];
-  const updates=[];
-  for(const[cat,total] of Object.entries(totalsObj)){
-    const row=ROW_MAP[cat]; if(!row) continue;
-    updates.push({ range:`'${tab}'!${col}${row}`, values:[[parseFloat(Math.abs(total).toFixed(2))]] });
+  const isReceita = (cat) => GROUPS['Receitas'] && GROUPS['Receitas'].includes(cat);
+
+  // Build list of ranges to read first
+  const cats = Object.keys(totalsObj).filter(cat => ROW_MAP[cat]);
+  if(!cats.length) return 0;
+  const ranges = cats.map(cat => `'${tab}'!${col}${ROW_MAP[cat]}`);
+
+  // Read existing values from sheet
+  const readResp = await fetch(
+    `${API}/${SHEET_ID}/values:batchGet?${ranges.map(r=>'ranges='+encodeURIComponent(r)).join('&')}`,
+    {headers:{Authorization:`Bearer ${tok}`}}
+  );
+  if(!readResp.ok){ const e=await readResp.json(); throw new Error(e.error?.message||'HTTP '+readResp.status); }
+  const readData = await readResp.json();
+  const existingValues = {};
+  (readData.valueRanges||[]).forEach((vr,i)=>{
+    const val = vr.values?.[0]?.[0];
+    existingValues[cats[i]] = val ? parseFloat(String(val).replace(',','.')) || 0 : 0;
+  });
+
+  // Accumulate: existing + new (new total can be positive=income or negative=expense)
+  const updates = [];
+  const changes = []; // for toast message
+  for(const cat of cats){
+    const row = ROW_MAP[cat];
+    const existing = existingValues[cat] || 0;
+    const newAmount = totalsObj[cat]; // negative = expense, positive = income/credit
+
+    let finalVal;
+    if(isReceita(cat)){
+      // Receitas: just accumulate positively
+      finalVal = existing + Math.abs(newAmount);
+    } else {
+      // Despesas: existing is stored as positive, newAmount negative=expense positive=reimbursement
+      // expense adds to existing, reimbursement subtracts
+      finalVal = existing + newAmount; // newAmount already has sign (-expense, +reimbursement)
+      if(finalVal < 0) finalVal = 0; // never below zero for expenses
+    }
+
+    finalVal = parseFloat(finalVal.toFixed(2));
+    updates.push({ range:`'${tab}'!${col}${row}`, values:[[finalVal]] });
+    if(existing !== finalVal) changes.push({cat, existing, finalVal, diff: finalVal - existing});
   }
+
   if(!updates.length) return 0;
   const resp=await fetch(`${API}/${SHEET_ID}/values:batchUpdate`,{
     method:'POST',
@@ -438,6 +483,9 @@ async function writeToSheet(totalsObj){
     body:JSON.stringify({valueInputOption:'USER_ENTERED',data:updates})
   });
   if(!resp.ok){ const e=await resp.json(); throw new Error(e.error?.message||'HTTP '+resp.status); }
+
+  // Store changes summary for display
+  window._lastWriteChanges = changes;
   return updates.length;
 }
 
@@ -585,7 +633,10 @@ function renderTxns(){
     const tr=document.createElement('tr'); if(ign) tr.classList.add('ignored');
     const cls='cat-sel'+(t.status==='l'?' lrn':t.status==='a'?' ai':t.status==='c'?' conf':'');
     const opts=ALL_CATS.map(c=>`<option value="${c}"${t.category===c?' selected':''}>${c}</option>`).join('');
-    tr.innerHTML=`<td class="td-date">${t.date}</td><td class="td-desc" title="${t.desc}">${t.desc}</td><td><span class="btag ${t.bank==='CGD'?'b-cgd':'b-san'}">${t.bank}</span></td><td class="td-amt ${t.amount<0?'deb':'crd'}">${t.amount<0?'':'+'}${Math.abs(t.amount).toFixed(2)} €</td><td><select class="${cls}" data-id="${t.id}">${opts}</select></td><td><button class="ign-btn${ign?' on':''}" data-id="${t.id}">${ign?'✓':'ign'}</button></td>`;
+      // Credit in expense category = reimbursement indicator
+  const isReimb = t.amount > 0 && t.category && t.category !== 'Ignorar / Transferência' && !GROUPS['Receitas'].includes(t.category);
+  const reimbTag = isReimb ? '<span class="btag" style="background:rgba(251,191,36,.15);color:var(--yel);margin-left:4px" title="Crédito deduz desta categoria">↩ reimb.</span>' : '';
+  tr.innerHTML=`<td class="td-date">${t.date}</td><td class="td-desc" title="${t.desc}">${t.desc}${reimbTag}</td><td><span class="btag ${t.bank==='CGD'?'b-cgd':'b-san'}">${t.bank}</span></td><td class="td-amt ${t.amount<0?'deb':'crd'}">${t.amount<0?'':'+'}${Math.abs(t.amount).toFixed(2)} €</td><td><select class="${cls}" data-id="${t.id}">${opts}</select></td><td><button class="ign-btn${ign?' on':''}" data-id="${t.id}">${ign?'✓':'ign'}</button></td>`;
     tbody.appendChild(tr);
   }
   const unc=txns.filter(t=>!t.category).length, lrn=txns.filter(t=>t.status==='l').length;
@@ -625,7 +676,11 @@ function renderSummary(){
       if(byCat[cat]===undefined) continue;
       const total=byCat[cat],isRec=grp==='Receitas';
       const card=document.createElement('div'); card.className='sum-card';
-      card.innerHTML=`<div class="sum-grp">${grp}</div><div class="sum-cat">${cat}</div><div class="sum-val ${isRec?'r':''}">${total<0?'':'+'}${total.toFixed(2)} €</div><div class="sum-n">${txns.filter(t=>t.category===cat).length} txn · linha ${ROW_MAP[cat]||'—'}</div>`;
+        const catTxns = txns.filter(t=>t.category===cat);
+  const debits = catTxns.filter(t=>t.amount<0).reduce((s,t)=>s+Math.abs(t.amount),0);
+  const credits = catTxns.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);
+  const reimbInfo = credits > 0 && !isRec ? `<div class="sum-n" style="color:var(--yel)">↩ ${credits.toFixed(2)} € reembolsado</div>` : '';
+  card.innerHTML=`<div class="sum-grp">${grp}</div><div class="sum-cat">${cat}</div><div class="sum-val ${isRec?'r':''}">${total<0?'':'+'}${total.toFixed(2)} €</div>${reimbInfo}<div class="sum-n">${catTxns.length} txn · linha ${ROW_MAP[cat]||'—'}</div>`;
       grid.appendChild(card);
     }
   }
@@ -642,8 +697,13 @@ document.getElementById('btn-write').addEventListener('click',async()=>{
   try{
     const n=await writeToSheet(totals);
     const m=parseInt(document.getElementById('sel-month').value), y=document.getElementById('sel-year').value;
-    showToast(`✓ ${n} células escritas — ${MONTH_NM[m]} ${y}`);
-    setSheetBar(true,`✓ ${n} valores escritos com sucesso`);
+    const changes = window._lastWriteChanges || [];
+    const credited = changes.filter(c=>c.diff<0).length;
+    const msg = credited > 0
+      ? `✓ ${n} células atualizadas (${credited} com reembolso deduzido) — ${MONTH_NM[m]} ${y}`
+      : `✓ ${n} células atualizadas — ${MONTH_NM[m]} ${y}`;
+    showToast(msg);
+    setSheetBar(true,`✓ ${n} valores acumulados com sucesso em ${MONTH_NM[m]} ${y}`);
     setStep(3);
   } catch(e){ showToast('Erro: '+e.message,true); setSheetBar(false,'Erro: '+e.message); console.error(e); }
   document.getElementById('write-load').style.display='none';
