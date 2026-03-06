@@ -48,6 +48,7 @@ body{background:var(--bg);color:var(--txt);font-family:'Geist',sans-serif;min-he
 .mrow{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
 .mrow label{font-size:.72rem;color:var(--m2);font-family:'Geist Mono',monospace}
 select,input[type=number],input[type=text]{background:var(--s2);border:1px solid var(--b1);border-radius:4px;color:var(--txt);padding:7px 10px;font-family:'Geist Mono',monospace;font-size:.8rem;outline:none;transition:border-color .2s}
+select option{background:var(--s2);color:var(--txt)}
 select:focus,input:focus{border-color:var(--acc)}
 .btn{background:var(--acc);color:#080a0e;border:none;padding:9px 18px;border-radius:4px;font-family:'Geist',sans-serif;font-weight:700;font-size:.82rem;cursor:pointer;transition:all .15s}
 .btn:hover{filter:brightness(1.1);transform:translateY(-1px)}
@@ -72,6 +73,7 @@ tr.ignored td{opacity:.35}
 .b-cgd{background:rgba(34,211,238,.1);color:var(--acc)}
 .b-san{background:rgba(167,139,250,.1);color:var(--acc2)}
 .cat-sel{background:var(--s2);border:1px solid var(--b1);border-radius:3px;color:var(--txt);padding:4px 7px;font-family:'Geist Mono',monospace;font-size:.7rem;outline:none;min-width:165px;max-width:210px}
+.cat-sel option{background:#161b24;color:#e2e8f0}
 .cat-sel:focus{border-color:var(--acc)}
 .cat-sel.ai{border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.03)}
 .cat-sel.lrn{border-color:rgba(167,139,250,.5);background:rgba(167,139,250,.04)}
@@ -262,7 +264,7 @@ tr.ignored td{opacity:.35}
   <div class="card-hdr">Entradas Manuais</div>
   <div style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;padding:14px;margin-bottom:14px">
     <p class="info" style="margin-bottom:12px">Valores que não constam nos extratos bancários (ex: cartão refeição, subsídios em dinheiro).</p>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px" id="manual-grid">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px" id="manual-grid">
       <div style="display:flex;flex-direction:column;gap:4px">
         <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Subsídio Alimentação Nuno</label>
         <input type="number" id="man-sub-nuno" placeholder="0.00" step="0.01" min="0" style="width:100%" oninput="readManuals();renderSummary()">
@@ -272,11 +274,34 @@ tr.ignored td{opacity:.35}
         <input type="number" id="man-sub-ana" placeholder="0.00" step="0.01" min="0" style="width:100%" oninput="readManuals();renderSummary()">
       </div>
       <div style="display:flex;flex-direction:column;gap:4px">
-        <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Outros Rendimentos (manual)</label>
+        <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Subsídio Férias/Natal Nuno</label>
+        <input type="number" id="man-ferias-nuno" placeholder="0.00" step="0.01" min="0" style="width:100%" oninput="readManuals();renderSummary()">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Subsídio Férias/Natal Ana</label>
+        <input type="number" id="man-ferias-ana" placeholder="0.00" step="0.01" min="0" style="width:100%" oninput="readManuals();renderSummary()">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Juros XTB</label>
+        <input type="number" id="man-xtb" placeholder="0.00" step="0.01" min="0" style="width:100%" oninput="readManuals();renderSummary()">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Juros Trade Republic</label>
+        <input type="number" id="man-tr" placeholder="0.00" step="0.01" min="0" style="width:100%" oninput="readManuals();renderSummary()">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Juros Revolut</label>
+        <input type="number" id="man-revolut" placeholder="0.00" step="0.01" min="0" style="width:100%" oninput="readManuals();renderSummary()">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">IRS (reembolso)</label>
+        <input type="number" id="man-irs" placeholder="0.00" step="0.01" min="0" style="width:100%" oninput="readManuals();renderSummary()">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Outros Rendimentos</label>
         <input type="number" id="man-outros" placeholder="0.00" step="0.01" min="0" style="width:100%" oninput="readManuals();renderSummary()">
       </div>
     </div>
-  </div>
   <div class="card-hdr">
     Publicar na Google Sheet
     <span id="tab-label" class="badge bb"></span>
@@ -401,7 +426,7 @@ const ROW_MAP = {
   'Salários Ana':90,'Salário Nuno':91,
   'Subsídio Alimentação Ana':92,'Subsídio Alimentação Nuno':93,
   'Subsídio Férias/Natal Ana':94,'Subsídio Férias/Natal Nuno':95,
-  'Juros XTB':96,'Juros Trade Republic':97,'Rendas':98,'Outros Rendimentos':99,'Reembolsos Seguros/ADSE':100,
+  'Juros XTB':96,'Juros Trade Republic':97,'Juros Revolut':98,'Rendas':99,'Outros Rendimentos':100,'Reembolsos Seguros/ADSE':101,'IRS':102,
 };
 const CATEGORIES = Object.keys(ROW_MAP);
 const ALL_CATS   = [...CATEGORIES,'Ignorar / Transferência'];
@@ -418,7 +443,7 @@ const GROUPS = {
   'Banco':['Comissões CGD','Comissões Santander'],
   'Estado':['IMI Cid. Coimbra','IMI Cid. Lagos','IUC','Outros (Estado)'],
   'Investimentos':['PPR Save & Grow NO','PPR Save & Grow AO','SP500 XTB'],
-  'Receitas':['Salários Ana','Salário Nuno','Subsídio Alimentação Ana','Subsídio Alimentação Nuno','Subsídio Férias/Natal Ana','Subsídio Férias/Natal Nuno','Juros XTB','Juros Trade Republic','Rendas','Outros Rendimentos','Reembolsos Seguros/ADSE'],
+  'Receitas':['Salários Ana','Salário Nuno','Subsídio Alimentação Ana','Subsídio Alimentação Nuno','Subsídio Férias/Natal Ana','Subsídio Férias/Natal Nuno','Juros XTB','Juros Trade Republic','Juros Revolut','Rendas','Outros Rendimentos','Reembolsos Seguros/ADSE','IRS'],
 };
 
 // ── BUILT-IN RULES ───────────────────────────────────────────
@@ -1144,13 +1169,50 @@ function renderDashboard(){
 }
 
 function readManuals(){
-  const manNuno = parseFloat(document.getElementById('man-sub-nuno')?.value||0)||0;
-  const manAna  = parseFloat(document.getElementById('man-sub-ana')?.value||0)||0;
-  const manOutros = parseFloat(document.getElementById('man-outros')?.value||0)||0;
+  const g = id => parseFloat(document.getElementById(id)?.value||0)||0;
   window._manualExtras = {};
-  if(manNuno)   window._manualExtras['Subsídio Alimentação Nuno'] = manNuno;
-  if(manAna)    window._manualExtras['Subsídio Alimentação Ana']  = manAna;
-  if(manOutros) window._manualExtras['Outros Rendimentos'] = manOutros;
+  const fields = [
+    ['man-sub-nuno',   'Subsídio Alimentação Nuno'],
+    ['man-sub-ana',    'Subsídio Alimentação Ana'],
+    ['man-ferias-nuno','Subsídio Férias/Natal Nuno'],
+    ['man-ferias-ana', 'Subsídio Férias/Natal Ana'],
+    ['man-xtb',        'Juros XTB'],
+    ['man-tr',         'Juros Trade Republic'],
+    ['man-revolut',    'Juros Revolut'],
+    ['man-irs',        'IRS'],
+    ['man-outros',     'Outros Rendimentos'],
+  ];
+  for(const[id,cat] of fields){ const v=g(id); if(v) window._manualExtras[cat]=(window._manualExtras[cat]||0)+v; }
+};
+  const fields = [
+    ['man-sub-nuno',   'Subsídio Alimentação Nuno'],
+    ['man-sub-ana',    'Subsídio Alimentação Ana'],
+    ['man-ferias-nuno','Subsídio Férias/Natal Nuno'],
+    ['man-ferias-ana', 'Subsídio Férias/Natal Ana'],
+    ['man-xtb',        'Juros XTB'],
+    ['man-tr',         'Juros Trade Republic'],
+    ['man-revolut',    'Outros Rendimentos'],
+    ['man-irs',        'Outros Rendimentos'],
+    ['man-outros',     'Outros Rendimentos'],
+  ];
+  for(const[id,cat] of fields){
+    const v=g(id);
+    if(v) window._manualExtras[cat]=(window._manualExtras[cat]||0)+v;
+  }
+};
+  const fields = [
+    ['man-sub-nuno',   'Subsídio Alimentação Nuno'],
+    ['man-sub-ana',    'Subsídio Alimentação Ana'],
+    ['man-ferias-nuno','Subsídio Férias/Natal Nuno'],
+    ['man-ferias-ana', 'Subsídio Férias/Natal Ana'],
+    ['man-xtb',        'Juros XTB'],
+    ['man-tr',         'Juros Trade Republic'],
+    ['man-revolut',    'Juros Revolut'],
+    ['man-outros',     'Outros Rendimentos'],
+    ['man-irs',        'IRS'],
+    ['man-creditos',   'Créditos Vários'],
+  ];
+  for(const[id,cat] of fields){ const v=g(id); if(v) window._manualExtras[cat]=v; }
 }
 
 // ── INIT ─────────────────────────────────────────────────────
