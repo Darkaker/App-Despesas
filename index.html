@@ -265,15 +265,15 @@ tr.ignored td{opacity:.35}
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px" id="manual-grid">
       <div style="display:flex;flex-direction:column;gap:4px">
         <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Subsídio Alimentação Nuno</label>
-        <input type="number" id="man-sub-nuno" placeholder="0.00" step="0.01" min="0" style="width:100%">
+        <input type="number" id="man-sub-nuno" placeholder="0.00" step="0.01" min="0" style="width:100%" oninput="readManuals();renderSummary()">
       </div>
       <div style="display:flex;flex-direction:column;gap:4px">
         <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Subsídio Alimentação Ana</label>
-        <input type="number" id="man-sub-ana" placeholder="0.00" step="0.01" min="0" style="width:100%">
+        <input type="number" id="man-sub-ana" placeholder="0.00" step="0.01" min="0" style="width:100%" oninput="readManuals();renderSummary()">
       </div>
       <div style="display:flex;flex-direction:column;gap:4px">
         <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Outros Rendimentos (manual)</label>
-        <input type="number" id="man-outros" placeholder="0.00" step="0.01" min="0" style="width:100%">
+        <input type="number" id="man-outros" placeholder="0.00" step="0.01" min="0" style="width:100%" oninput="readManuals();renderSummary()">
       </div>
     </div>
   </div>
@@ -620,8 +620,6 @@ async function writeToSheet(totalsObj){
   const year=document.getElementById('sel-year').value;
   const tab=`Despesas vs Receitas ${year}`;
   const col=MONTH_COL[month];
-  const isReceita = (cat) => GROUPS['Receitas'] && GROUPS['Receitas'].includes(cat);
-
   // Build list of ranges to read first
   const cats = Object.keys(totalsObj).filter(cat => ROW_MAP[cat]);
   if(!cats.length) return 0;
@@ -640,31 +638,14 @@ async function writeToSheet(totalsObj){
     existingValues[cats[i]] = val ? parseFloat(String(val).replace(',','.')) || 0 : 0;
   });
 
-  // Accumulate: existing + new
-  // transactions: debits are negative, credits are positive
-  // sheet stores expenses as positive numbers
-  // so for expenses: sheet_value += abs(debits) - credits = -newAmount
-  // for receitas: sheet_value += newAmount (already positive)
+  // totalsObj values are already positive net amounts (from calcTotals)
+  // just add to existing sheet values
   const updates = [];
   const changes = [];
-  // Also include manual entries
-  const manualExtras = window._manualExtras || {};
   for(const cat of cats){
     const row = ROW_MAP[cat];
     const existing = existingValues[cat] || 0;
-    const newAmount = totalsObj[cat]; // sum of transaction amounts (neg=debit, pos=credit)
-    const manual = manualExtras[cat] || 0;
-
-    let toAdd;
-    if(isReceita(cat)){
-      // Income: add absolute value of income transactions + manual
-      toAdd = Math.abs(newAmount) + manual;
-    } else {
-      // Expense: -newAmount converts (neg debits - pos credits) to positive net expense
-      // e.g. -105 + 50 = -55 → -(-55) = 55 net expense
-      toAdd = -newAmount + manual;
-    }
-
+    const toAdd = totalsObj[cat] || 0;
     const finalVal = parseFloat(Math.max(0, existing + toAdd).toFixed(2));
     updates.push({ range:`'${tab}'!${col}${row}`, values:[[finalVal]] });
     if(existing !== finalVal) changes.push({cat, existing, finalVal, diff: finalVal - existing});
@@ -881,25 +862,64 @@ document.getElementById('btn-conf-all').addEventListener('click',()=>{ txns.filt
 document.getElementById('btn-rst-ign').addEventListener('click',()=>{ txns.filter(t=>t.category==='Ignorar / Transferência').forEach(t=>{t.category='';t.status='u';}); renderTxns(); renderSummary(); });
 
 // ── RENDER SUMMARY ───────────────────────────────────────────
-function renderSummary(){
-  const active=txns.filter(t=>t.category&&t.category!=='Ignorar / Transferência');
-  const dep=active.filter(t=>t.amount<0).reduce((s,t)=>s+Math.abs(t.amount),0);
-  const rec=active.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);
-  const unc=txns.filter(t=>!t.category).length;
-  document.getElementById('stats').innerHTML=`<div class="stat"><div class="slbl">Despesas</div><div class="sval g">${dep.toFixed(2)} €</div></div><div class="stat"><div class="slbl">Receitas</div><div class="sval b">${rec.toFixed(2)} €</div></div><div class="stat"><div class="slbl">Saldo</div><div class="sval ${rec-dep>=0?'g':'r'}">${(rec-dep).toFixed(2)} €</div></div><div class="stat"><div class="slbl">Por categorizar</div><div class="sval ${unc>0?'y':''}">${unc}</div></div>`;
+function calcTotals(){
+  // Calculate per-category net values exactly as writeToSheet will use them
+  // Expenses: sum of abs(debits) - credits = net expense (positive)
+  // Receitas: sum of abs(credits) = net income (positive)
   const byCat={};
-  for(const t of active) byCat[t.category]=(byCat[t.category]||0)+t.amount;
+  const active=txns.filter(t=>t.category&&t.category!=='Ignorar / Transferência');
+  for(const t of active){
+    if(!byCat[t.category]) byCat[t.category]={debits:0,credits:0,txns:[]};
+    if(t.amount<0) byCat[t.category].debits+=Math.abs(t.amount);
+    else byCat[t.category].credits+=t.amount;
+    byCat[t.category].txns.push(t);
+  }
+  // Add manual extras
+  const man=window._manualExtras||{};
+  for(const[cat,val] of Object.entries(man)){
+    if(!byCat[cat]) byCat[cat]={debits:0,credits:0,txns:[]};
+    if(GROUPS['Receitas'].includes(cat)) byCat[cat].credits+=val;
+    else byCat[cat].debits+=val;
+  }
+  const result={};
+  for(const[cat,v] of Object.entries(byCat)){
+    const isRec=GROUPS['Receitas'].includes(cat);
+    result[cat]={
+      net: isRec ? parseFloat((v.credits).toFixed(2)) : parseFloat((v.debits-v.credits).toFixed(2)),
+      debits:v.debits, credits:v.credits, txns:v.txns, isRec
+    };
+  }
+  return result;
+}
+
+function renderSummary(){
+  const totals=calcTotals();
+  const unc=txns.filter(t=>!t.category).length;
+  const man=window._manualExtras||{};
+  const manTotal=Object.entries(man).reduce((s,[cat,v])=>s+(GROUPS['Receitas'].includes(cat)?v:0),0);
+
+  let totalDep=0,totalRec=0;
+  for(const[cat,v] of Object.entries(totals)){
+    if(v.isRec) totalRec+=v.net; else totalDep+=v.net;
+  }
+  const saldo=totalRec-totalDep;
+
+  document.getElementById('stats').innerHTML=`
+    <div class="stat"><div class="slbl">Despesas</div><div class="sval r">${totalDep.toFixed(2)} €</div></div>
+    <div class="stat"><div class="slbl">Receitas</div><div class="sval b">${totalRec.toFixed(2)} €${manTotal>0?'<div style="font-size:.58rem;color:var(--m2);margin-top:2px">+'+manTotal.toFixed(2)+'€ manual</div>':''}</div></div>
+    <div class="stat"><div class="slbl">Saldo</div><div class="sval ${saldo>=0?'g':'r'}">${saldo.toFixed(2)} €</div></div>
+    <div class="stat"><div class="slbl">Por categorizar</div><div class="sval ${unc>0?'y':''}">${unc}</div></div>
+  `;
+
   const grid=document.getElementById('sum-grid'); grid.innerHTML='';
   for(const[grp,cats] of Object.entries(GROUPS)){
     for(const cat of cats){
-      if(byCat[cat]===undefined) continue;
-      const total=byCat[cat],isRec=grp==='Receitas';
+      const v=totals[cat]; if(!v&&!man[cat]) continue;
+      const net=v?v.net:0;
+      const reimbInfo=v&&!v.isRec&&v.credits>0?`<div class="sum-n" style="color:var(--yel)">↩ ${v.credits.toFixed(2)} € reembolsado</div>`:'';
+      const manInfo=man[cat]?`<div class="sum-n" style="color:var(--acc2)">+ ${man[cat].toFixed(2)} € manual</div>`:'';
       const card=document.createElement('div'); card.className='sum-card';
-        const catTxns = txns.filter(t=>t.category===cat);
-  const debits = catTxns.filter(t=>t.amount<0).reduce((s,t)=>s+Math.abs(t.amount),0);
-  const credits = catTxns.filter(t=>t.amount>0).reduce((s,t)=>s+t.amount,0);
-  const reimbInfo = credits > 0 && !isRec ? `<div class="sum-n" style="color:var(--yel)">↩ ${credits.toFixed(2)} € reembolsado</div>` : '';
-  card.innerHTML=`<div class="sum-grp">${grp}</div><div class="sum-cat">${cat}</div><div class="sum-val ${isRec?'r':''}">${total<0?'':'+'}${total.toFixed(2)} €</div>${reimbInfo}<div class="sum-n">${catTxns.length} txn · linha ${ROW_MAP[cat]||'—'}</div>`;
+      card.innerHTML=`<div class="sum-grp">${grp}</div><div class="sum-cat">${cat}</div><div class="sum-val ${v?.isRec?'r':''}">${net.toFixed(2)} €</div>${reimbInfo}${manInfo}<div class="sum-n">${v?v.txns.length:0} txn · linha ${ROW_MAP[cat]||'—'}</div>`;
       grid.appendChild(card);
     }
   }
@@ -908,17 +928,13 @@ function renderSummary(){
 // ── WRITE TO SHEET ───────────────────────────────────────────
 document.getElementById('btn-write').addEventListener('click',async()=>{
   if(!accessToken){ tokenClient.requestAccessToken({prompt:''}); showToast('Liga primeiro ao Google',true); return; }
-  const totals={};
-  for(const t of txns){ if(!t.category||t.category==='Ignorar / Transferência') continue; totals[t.category]=(totals[t.category]||0)+t.amount; }
-  // Add manual entries
-  const manNuno = parseFloat(document.getElementById('man-sub-nuno')?.value||0)||0;
-  const manAna  = parseFloat(document.getElementById('man-sub-ana')?.value||0)||0;
-  const manOutros = parseFloat(document.getElementById('man-outros')?.value||0)||0;
-  window._manualExtras = {};
-  if(manNuno)  { window._manualExtras['Subsídio Alimentação Nuno'] = manNuno; totals['Subsídio Alimentação Nuno'] = totals['Subsídio Alimentação Nuno']||0; }
-  if(manAna)   { window._manualExtras['Subsídio Alimentação Ana']  = manAna;  totals['Subsídio Alimentação Ana']  = totals['Subsídio Alimentação Ana'] ||0; }
-  if(manOutros){ window._manualExtras['Outros Rendimentos'] = manOutros; totals['Outros Rendimentos'] = totals['Outros Rendimentos']||0; }
-  if(!Object.keys(totals).length && !Object.keys(window._manualExtras||{}).length){ showToast('Nenhuma categoria com dados',true); return; }
+  // Sync manual fields before writing
+  readManuals();
+  // Use calcTotals for consistency with what's shown on screen
+  const catTotals = calcTotals();
+  const totals = {};
+  for(const[cat,v] of Object.entries(catTotals)) totals[cat] = v.net;
+  if(!Object.keys(totals).length){ showToast('Nenhuma categoria com dados',true); return; }
   document.getElementById('write-load').style.display='flex';
   document.getElementById('btn-write').disabled=true;
   try{
@@ -1125,6 +1141,16 @@ function renderDashboard(){
     if(!ctx) continue;
     _charts[def.id] = new Chart(ctx, { type:def.type, data:def.data, options:JSON.parse(JSON.stringify(baseOpts)) });
   }
+}
+
+function readManuals(){
+  const manNuno = parseFloat(document.getElementById('man-sub-nuno')?.value||0)||0;
+  const manAna  = parseFloat(document.getElementById('man-sub-ana')?.value||0)||0;
+  const manOutros = parseFloat(document.getElementById('man-outros')?.value||0)||0;
+  window._manualExtras = {};
+  if(manNuno)   window._manualExtras['Subsídio Alimentação Nuno'] = manNuno;
+  if(manAna)    window._manualExtras['Subsídio Alimentação Ana']  = manAna;
+  if(manOutros) window._manualExtras['Outros Rendimentos'] = manOutros;
 }
 
 // ── INIT ─────────────────────────────────────────────────────
