@@ -485,14 +485,19 @@ const RULES = [
 
 // ── LEARNING ─────────────────────────────────────────────────
 const LS='despesas_v2';
+
+let txns=[], bankData={CGD:null,Santander:null,Extra:null};
+
 function getLearned(){ try{ return JSON.parse(localStorage.getItem(LS)||'{}'); }catch{ return {}; } }
 function saveLearned(m){ try{ localStorage.setItem(LS,JSON.stringify(m)); }catch{} }
+
 function learnRule(desc,cat){
   if(cat==='Ignorar / Transferência') return;
   const m=getLearned(),k=desc.trim().toUpperCase().slice(0,45);
   m[k]={ cat, n:(m[k]?.n||0)+1, ts:Date.now() };
   saveLearned(m); updateLrnBadge();
 }
+
 function lookupLearned(desc){
   const m=getLearned(),k=desc.trim().toUpperCase().slice(0,45);
   if(m[k]) return m[k].cat;
@@ -501,10 +506,10 @@ function lookupLearned(desc){
   }
   return '';
 }
-// ── HISTORY ─────────────────────────────────────────────────
-const HS='despesas_history_v1';
+
 function getHistory(){ try{ return JSON.parse(localStorage.getItem(HS)||'[]'); }catch{ return []; } }
 function saveHistory(h){ try{ localStorage.setItem(HS,JSON.stringify(h)); }catch{} }
+
 function addToHistory(month, year, entries){
   const h=getHistory();
   // Remove existing entry for same month/year if exists
@@ -515,6 +520,7 @@ function addToHistory(month, year, entries){
   if(h.length>24) h.splice(24);
   saveHistory(h);
 }
+
 function updateHistoryBadge(){
   const h=getHistory();
   const el=document.getElementById('hist-badge');
@@ -523,6 +529,7 @@ function updateHistoryBadge(){
 
 function updateLrnBadge(){ const n=Object.keys(getLearned()).length; document.getElementById('lrn-badge').textContent=n>0?n+' regras':'sem histórico'; }
 function exportLearned(){ const m=getLearned(); let c='Descrição;Categoria;Contagem\n'; for(const[k,v] of Object.entries(m)) c+=`"${k}";"${v.cat}";${v.n}\n`; dl('\ufeff'+c,'regras.csv','text/csv;charset=utf-8'); }
+
 function confirmClearLearned(){ if(confirm('Apagar histórico?')){ localStorage.removeItem(LS); updateLrnBadge(); showToast('Histórico limpo'); } }
 function getQuickCats(desc, currentCat, n=6){
   const learned = getLearned();
@@ -586,8 +593,6 @@ function localCat(desc){
   return {cat:'',src:''};
 }
 
-// ── GOOGLE AUTH ──────────────────────────────────────────────
-let accessToken=null, tokenExpiry=0, tokenClient=null;
 function initGoogleAuth(){
   if(typeof google==='undefined'){ setTimeout(initGoogleAuth,500); return; }
   tokenClient=google.accounts.oauth2.initTokenClient({
@@ -601,6 +606,7 @@ function initGoogleAuth(){
     }
   });
 }
+
 function handleAuth(){
   if(accessToken&&Date.now()<tokenExpiry){
     google.accounts.oauth2.revoke(accessToken,()=>{});
@@ -609,6 +615,7 @@ function handleAuth(){
   }
   tokenClient.requestAccessToken({prompt:''});
 }
+
 async function ensureToken(){
   if(accessToken&&Date.now()<tokenExpiry) return accessToken;
   return new Promise((res,rej)=>{
@@ -616,13 +623,13 @@ async function ensureToken(){
     tokenClient.requestAccessToken({prompt:''});
   });
 }
+
 function updateAuthUI(ok){
   const el=document.getElementById('auth-btn');
   el.className='auth-pill'+(ok?' logged':'');
   document.getElementById('auth-label').textContent=ok?'Google ligado':'Ligar ao Google';
 }
 
-// ── SHEETS API ───────────────────────────────────────────────
 async function checkSheetAccess(){
   try{
     const tok=await ensureToken(), year=document.getElementById('sel-year').value;
@@ -635,10 +642,12 @@ async function checkSheetAccess(){
     else { setSheetBar(false,`"${tab}" não encontrado. Tabs: ${tabs.slice(0,4).join(', ')}`); }
   } catch(e){ setSheetBar(false,'Erro: '+e.message); }
 }
+
 function setSheetBar(ok,msg){
   document.getElementById('sdot').className='sdot'+(ok?' ok':' err');
   const el=document.getElementById('smsg'); el.textContent=msg; el.style.color=ok?'var(--grn)':'var(--red)';
 }
+
 async function writeToSheet(totalsObj){
   const tok=await ensureToken();
   const month=parseInt(document.getElementById('sel-month').value);
@@ -689,8 +698,6 @@ async function writeToSheet(totalsObj){
   return updates.length;
 }
 
-// ── FILE HANDLING ────────────────────────────────────────────
-let txns=[], bankData={CGD:null,Santander:null,Extra:null};
 function setupDZ(dzId,inputId,stId,bank){
   const dz=document.getElementById(dzId);
   document.getElementById(inputId).addEventListener('change',e=>{ if(e.target.files[0]) loadFile(e.target.files[0],bank,dz,stId); });
@@ -698,9 +705,7 @@ function setupDZ(dzId,inputId,stId,bank){
   dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
   dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0],bank,dz,stId);});
 }
-setupDZ('dz-cgd','f-cgd','st-cgd','CGD');
-setupDZ('dz-san','f-san','st-san','Santander');
-setupDZ('dz-extra','f-extra','st-extra','Extra');
+
 async function loadFile(file,bank,dz,stId){
   try{
     const arr=await readBin(file); let rows=[];
@@ -711,11 +716,13 @@ async function loadFile(file,bank,dz,stId){
     checkReady();
   } catch(e){ showToast('Erro: '+e.message,true); }
 }
+
 function readBin(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(new Uint8Array(e.target.result)); r.onerror=rej; r.readAsArrayBuffer(f); }); }
 function readTxt(f){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=rej; r.readAsText(f,'ISO-8859-1'); }); }
+
 function checkReady(){ document.getElementById('btn-go').disabled=!(bankData.CGD||bankData.Santander||bankData.Extra); }
 
-// ── PARSE CGD ────────────────────────────────────────────────
+
 function parseCGD(txt){
   const out=[]; let started=false;
   for(const line of txt.split(/\r?\n/)){
@@ -730,7 +737,6 @@ function parseCGD(txt){
   return out;
 }
 
-// ── PARSE SANTANDER ──────────────────────────────────────────
 function parseSantander(wb){
   const ws=wb.Sheets[wb.SheetNames[0]];
   const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
@@ -756,10 +762,10 @@ function parseSantander(wb){
   }
   return out;
 }
+
 function parseEUR(s){ return parseFloat(String(s||'').replace(/\./g,'').replace(',','.'))||0; }
 function mkT(date,desc,amount,bank){ return {id:Math.random().toString(36).slice(2,10),date,desc,amount,bank,category:'',status:'u'}; }
 
-// ── AI CATEGORIZE ────────────────────────────────────────────
 async function aiCat(batch){
   const prompt=`Categoriza transações bancárias portuguesas.
 Categorias: ${CATEGORIES.join(', ')}, Ignorar / Transferência
@@ -777,116 +783,6 @@ ${batch.map(t=>`{"id":"${t.id}","desc":"${t.desc}","amt":${t.amount},"bank":"${t
   return JSON.parse(txt);
 }
 
-// ── MAIN PROCESS ─────────────────────────────────────────────
-document.getElementById('btn-go').addEventListener('click',async()=>{
-  txns=[];
-  ['CGD','Santander','Extra'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
-  txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
-  let lrn=0;
-  for(const t of txns){
-    const{cat,src}=localCat(t.desc);
-    if(cat){ t.category=cat; t.status=src==='l'?'l':'a'; if(src==='l') lrn++; }
-  }
-  setStep(2);
-  document.getElementById('card-upload').style.display='none';
-  document.getElementById('card-cat').style.display='';
-  document.getElementById('card-sum').style.display='';
-  updateTabLabel();
-  renderTxns(); renderSummary();
-  const unc=txns.filter(t=>!t.category);
-  if(unc.length>0){
-    showAILoad(true);
-    const B=25;
-    for(let i=0;i<unc.length;i+=B){
-      const batch=unc.slice(i,i+B);
-      document.getElementById('prog').style.width=Math.round(i/unc.length*100)+'%';
-      document.getElementById('ai-msg').textContent=`IA: ${i} / ${unc.length}`;
-      try{ const res=await aiCat(batch); for(const r of res){ const t=txns.find(x=>x.id===r.id); if(t&&ALL_CATS.includes(r.category)){ t.category=r.category; t.status='a'; } } }catch(e){ console.warn(e); }
-    }
-    document.getElementById('prog').style.width='100%';
-    showAILoad(false);
-    renderTxns(); renderSummary();
-  }
-  showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
-  if(accessToken) checkSheetAccess();
-});
-
-// ── RENDER TRANSACTIONS ──────────────────────────────────────
-function renderTxns(){
-  const srch=document.getElementById('srch').value.toLowerCase();
-  const fCat=document.getElementById('flt-cat').value;
-  const fSt=document.getElementById('flt-st').value;
-  const fBank=document.getElementById('flt-bank').value;
-  let list=txns;
-  if(srch) list=list.filter(t=>t.desc.toLowerCase().includes(srch)||t.category.toLowerCase().includes(srch));
-  if(fCat) list=list.filter(t=>t.category===fCat);
-  if(fSt==='u') list=list.filter(t=>!t.category);
-  else if(fSt==='l') list=list.filter(t=>t.status==='l');
-  else if(fSt==='a') list=list.filter(t=>t.status==='a');
-  else if(fSt==='c') list=list.filter(t=>t.status==='c');
-  else if(fSt==='i') list=list.filter(t=>t.category==='Ignorar / Transferência');
-  if(fBank) list=list.filter(t=>t.bank===fBank);
-  const tbody=document.getElementById('tbody');
-  tbody.innerHTML='';
-  for(const t of list){
-    const ign=t.category==='Ignorar / Transferência';
-    const tr=document.createElement('tr'); if(ign) tr.classList.add('ignored');
-    const cls='cat-sel'+(t.status==='l'?' lrn':t.status==='a'?' ai':t.status==='c'?' conf':'');
-    const opts=ALL_CATS.map(c=>`<option value="${c}"${t.category===c?' selected':''}>${c}</option>`).join('');
-      // Credit in expense category = reimbursement indicator
-  const isReimb = t.amount > 0 && t.category && t.category !== 'Ignorar / Transferência' && !GROUPS['Receitas'].includes(t.category);
-  const reimbTag = isReimb ? '<span class="btag" style="background:rgba(251,191,36,.15);color:var(--yel);margin-left:4px" title="Crédito — deduz da categoria">↩ deduz</span>' : '';
-  const isCreditNocat = t.amount > 0 && !t.category;
-  const creditHint = isCreditNocat ? '<span class="btag" style="background:rgba(167,139,250,.15);color:var(--acc2);margin-left:4px">crédito</span>' : '';
-  const quickCats = getQuickCats(t.desc, t.category);
-  const qBtns = quickCats.map(c=>`<button class="qbtn${t.category===c?' active':''}" data-id="${t.id}" data-cat="${c}">${c}</button>`).join('');
-  tr.innerHTML=`<td class="td-date">${t.date}</td><td class="td-desc" title="${t.desc}">${t.desc}${reimbTag}${creditHint||""}<div class="qbtns">${qBtns}<button class="qbtn more" data-id="${t.id}" data-cat="__more__">+ outras</button></div></td><td><span class="btag ${t.bank==='CGD'?'b-cgd':'b-san'}">${t.bank}</span></td><td class="td-amt ${t.amount<0?'deb':'crd'}">${t.amount<0?'':'+'}${Math.abs(t.amount).toFixed(2)} €</td><td><select class="${cls}" data-id="${t.id}" style="${t.category&&!quickCats.includes(t.category)?'':'opacity:.5;pointer-events:none'}">${opts}</select></td><td><button class="ign-btn${ign?' on':''}" data-id="${t.id}">${ign?'✓':'ign'}</button></td>`;
-    tbody.appendChild(tr);
-  }
-  const unc=txns.filter(t=>!t.category).length, lrn=txns.filter(t=>t.status==='l').length;
-  document.getElementById('bdg-total').textContent=txns.length+' txn';
-  const ub=document.getElementById('bdg-unc'); unc>0?(ub.textContent=unc+' por categorizar',ub.style.display=''):(ub.style.display='none');
-  const lb=document.getElementById('bdg-lrn'); lrn>0?(lb.textContent=lrn+' aprendidas',lb.style.display=''):(lb.style.display='none');
-  const fc=document.getElementById('flt-cat'),cv=fc.value;
-  const used=[...new Set(txns.map(t=>t.category).filter(Boolean))].sort();
-  fc.innerHTML='<option value="">todas categorias</option>'+used.map(c=>`<option value="${c}"${c===cv?' selected':''}>${c}</option>`).join('');
-}
-document.getElementById('tbody').addEventListener('click',e=>{
-  const qbtn = e.target.closest('.qbtn');
-  if(qbtn && !qbtn.classList.contains('ign-btn')){
-    const id = qbtn.dataset.id;
-    const cat = qbtn.dataset.cat;
-    if(cat === '__more__'){
-      // Enable the dropdown for this row
-      const sel = document.querySelector(`select.cat-sel[data-id="${id}"]`);
-      if(sel){ sel.style.opacity='1'; sel.style.pointerEvents='auto'; sel.focus(); }
-      return;
-    }
-    const t = txns.find(x=>x.id===id);
-    if(t){
-      t.category=cat; t.status='c';
-      if(cat && cat!=='Ignorar / Transferência') learnRule(t.desc,cat);
-      renderTxns(); renderSummary();
-    }
-    e.stopPropagation();
-    return;
-  }
-});
-document.getElementById('tbody').addEventListener('change',e=>{
-  if(!e.target.matches('select[data-id]')) return;
-  const t=txns.find(x=>x.id===e.target.dataset.id);
-  if(t){ t.category=e.target.value; t.status='c'; if(t.category&&t.category!=='Ignorar / Transferência') learnRule(t.desc,t.category); e.target.className='cat-sel conf'; renderSummary(); }
-});
-document.getElementById('tbody').addEventListener('click',e=>{
-  if(!e.target.matches('button.ign-btn')) return;
-  const t=txns.find(x=>x.id===e.target.dataset.id);
-  if(t){ t.category=t.category==='Ignorar / Transferência'?'':'Ignorar / Transferência'; t.status=t.category?'c':'u'; renderTxns(); renderSummary(); }
-});
-['srch','flt-cat','flt-st','flt-bank'].forEach(id=>{ document.getElementById(id).addEventListener('input',renderTxns); document.getElementById(id).addEventListener('change',renderTxns); });
-document.getElementById('btn-conf-all').addEventListener('click',()=>{ txns.filter(t=>t.status==='a'&&t.category).forEach(t=>t.status='c'); renderTxns(); renderSummary(); showToast('Sugestões IA confirmadas'); });
-document.getElementById('btn-rst-ign').addEventListener('click',()=>{ txns.filter(t=>t.category==='Ignorar / Transferência').forEach(t=>{t.category='';t.status='u';}); renderTxns(); renderSummary(); });
-
-// ── RENDER SUMMARY ───────────────────────────────────────────
 function calcTotals(){
   // Calculate per-category net values exactly as writeToSheet will use them
   // Expenses: sum of abs(debits) - credits = net expense (positive)
@@ -950,60 +846,55 @@ function renderSummary(){
   }
 }
 
-// ── WRITE TO SHEET ───────────────────────────────────────────
-document.getElementById('btn-write').addEventListener('click',async()=>{
-  if(!accessToken){ tokenClient.requestAccessToken({prompt:''}); showToast('Liga primeiro ao Google',true); return; }
-  // Sync manual fields before writing
-  readManuals();
-  // Use calcTotals for consistency with what's shown on screen
-  const catTotals = calcTotals();
-  const totals = {};
-  for(const[cat,v] of Object.entries(catTotals)) totals[cat] = v.net;
-  if(!Object.keys(totals).length){ showToast('Nenhuma categoria com dados',true); return; }
-  document.getElementById('write-load').style.display='flex';
-  document.getElementById('btn-write').disabled=true;
-  try{
-    const n=await writeToSheet(totals);
-    const m=parseInt(document.getElementById('sel-month').value), y=document.getElementById('sel-year').value;
-    const changes = window._lastWriteChanges || [];
-    const credited = changes.filter(c=>c.diff<0).length;
-    const msg = credited > 0
-      ? `✓ ${n} células atualizadas (${credited} com reembolso deduzido) — ${MONTH_NM[m]} ${y}`
-      : `✓ ${n} células atualizadas — ${MONTH_NM[m]} ${y}`;
-    showToast(msg);
-    setSheetBar(true,`✓ ${n} valores acumulados com sucesso em ${MONTH_NM[m]} ${y}`);
-    setStep(3);
-    // Save validated transactions to history
-    const validatedEntries = txns
-      .filter(t=>t.category && t.category!=='Ignorar / Transferência')
-      .map(t=>({date:t.date,desc:t.desc,bank:t.bank,amount:t.amount,category:t.category}));
-    addToHistory(m, parseInt(y), validatedEntries);
-    updateHistoryBadge();
-    populateHistorySelect();
-  } catch(e){ showToast('Erro: '+e.message,true); setSheetBar(false,'Erro: '+e.message); console.error(e); }
-  document.getElementById('write-load').style.display='none';
-  document.getElementById('btn-write').disabled=false;
-});
+  function renderTxns(){
+    const srch=document.getElementById('srch').value.toLowerCase();
+    const fCat=document.getElementById('flt-cat').value;
+    const fSt=document.getElementById('flt-st').value;
+    const fBank=document.getElementById('flt-bank').value;
+    let list=txns;
+    if(srch) list=list.filter(t=>t.desc.toLowerCase().includes(srch)||t.category.toLowerCase().includes(srch));
+    if(fCat) list=list.filter(t=>t.category===fCat);
+    if(fSt==='u') list=list.filter(t=>!t.category);
+    else if(fSt==='l') list=list.filter(t=>t.status==='l');
+    else if(fSt==='a') list=list.filter(t=>t.status==='a');
+    else if(fSt==='c') list=list.filter(t=>t.status==='c');
+    else if(fSt==='i') list=list.filter(t=>t.category==='Ignorar / Transferência');
+    if(fBank) list=list.filter(t=>t.bank===fBank);
+    const tbody=document.getElementById('tbody');
+    tbody.innerHTML='';
+    for(const t of list){
+      const ign=t.category==='Ignorar / Transferência';
+      const tr=document.createElement('tr'); if(ign) tr.classList.add('ignored');
+      const cls='cat-sel'+(t.status==='l'?' lrn':t.status==='a'?' ai':t.status==='c'?' conf':'');
+      const opts=ALL_CATS.map(c=>`<option value="${c}"${t.category===c?' selected':''}>${c}</option>`).join('');
+        // Credit in expense category = reimbursement indicator
+    const isReimb = t.amount > 0 && t.category && t.category !== 'Ignorar / Transferência' && !GROUPS['Receitas'].includes(t.category);
+    const reimbTag = isReimb ? '<span class="btag" style="background:rgba(251,191,36,.15);color:var(--yel);margin-left:4px" title="Crédito — deduz da categoria">↩ deduz</span>' : '';
+    const isCreditNocat = t.amount > 0 && !t.category;
+    const creditHint = isCreditNocat ? '<span class="btag" style="background:rgba(167,139,250,.15);color:var(--acc2);margin-left:4px">crédito</span>' : '';
+    const quickCats = getQuickCats(t.desc, t.category);
+    const qBtns = quickCats.map(c=>`<button class="qbtn${t.category===c?' active':''}" data-id="${t.id}" data-cat="${c}">${c}</button>`).join('');
+    tr.innerHTML=`<td class="td-date">${t.date}</td><td class="td-desc" title="${t.desc}">${t.desc}${reimbTag}${creditHint||""}<div class="qbtns">${qBtns}<button class="qbtn more" data-id="${t.id}" data-cat="__more__">+ outras</button></div></td><td><span class="btag ${t.bank==='CGD'?'b-cgd':'b-san'}">${t.bank}</span></td><td class="td-amt ${t.amount<0?'deb':'crd'}">${t.amount<0?'':'+'}${Math.abs(t.amount).toFixed(2)} €</td><td><select class="${cls}" data-id="${t.id}" style="${t.category&&!quickCats.includes(t.category)?'':'opacity:.5;pointer-events:none'}">${opts}</select></td><td><button class="ign-btn${ign?' on':''}" data-id="${t.id}">${ign?'✓':'ign'}</button></td>`;
+      tbody.appendChild(tr);
+    }
+    const unc=txns.filter(t=>!t.category).length, lrn=txns.filter(t=>t.status==='l').length;
+    document.getElementById('bdg-total').textContent=txns.length+' txn';
+    const ub=document.getElementById('bdg-unc'); unc>0?(ub.textContent=unc+' por categorizar',ub.style.display=''):(ub.style.display='none');
+    const lb=document.getElementById('bdg-lrn'); lrn>0?(lb.textContent=lrn+' aprendidas',lb.style.display=''):(lb.style.display='none');
+    const fc=document.getElementById('flt-cat'),cv=fc.value;
+    const used=[...new Set(txns.map(t=>t.category).filter(Boolean))].sort();
+    fc.innerHTML='<option value="">todas categorias</option>'+used.map(c=>`<option value="${c}"${c===cv?' selected':''}>${c}</option>`).join('');
+  }
 
-// ── CSV BACKUP ───────────────────────────────────────────────
-document.getElementById('btn-csv').addEventListener('click',()=>{
-  const m=parseInt(document.getElementById('sel-month').value),y=document.getElementById('sel-year').value;
-  const totals={};
-  for(const t of txns){ if(!t.category||t.category==='Ignorar / Transferência') continue; totals[t.category]=(totals[t.category]||0)+t.amount; }
-  let csv=`Categoria;Linha;${MONTH_NM[m]} ${y}\n`;
-  for(const[g,cats] of Object.entries(GROUPS)) for(const cat of cats){ if(totals[cat]===undefined) continue; csv+=`${cat};${ROW_MAP[cat]||''};${Math.abs(totals[cat]).toFixed(2).replace('.',',')}\n`; }
-  dl('\ufeff'+csv,`totais_${y}_${String(m).padStart(2,'0')}.csv`,'text/csv;charset=utf-8');
-  showToast('CSV exportado');
-});
-
-// ── HELPERS ──────────────────────────────────────────────────
 function setStep(n){ for(let i=1;i<=3;i++){ const s=document.getElementById('s'+i); s.className='step'+(i<n?' done':i===n?' active':''); } }
 function showAILoad(show){ document.getElementById('ai-load').style.display=show?'flex':'none'; if(!show) document.getElementById('prog').style.width='0'; }
+
 function updateTabLabel(){ const y=document.getElementById('sel-year').value,m=parseInt(document.getElementById('sel-month').value); document.getElementById('tab-label').textContent=`Despesas vs Receitas ${y} · col ${MONTH_COL[m]}`; }
 function showToast(msg,err=false){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(err?' err':''); clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast',4000); }
+
 function dl(data,name,type){ const b=new Blob([data],{type}),u=URL.createObjectURL(b),a=document.createElement('a'); a.href=u; a.download=name; a.click(); }
 
-// ── HISTORY UI ──────────────────────────────────────────────
+
 function populateHistorySelect(){
   const h=getHistory();
   const sel=document.getElementById('hist-sel');
@@ -1017,6 +908,7 @@ function populateHistorySelect(){
   }
   if(cur) sel.value=cur;
 }
+
 function renderHistory(){
   const sel=document.getElementById('hist-sel').value;
   const content=document.getElementById('hist-content');
@@ -1047,12 +939,9 @@ function renderHistory(){
   const income=entries.reduce((s,e)=>s+(e.amount>0?e.amount:0),0);
   document.getElementById('hist-stats').textContent=`${entries.length} transações · despesas: ${total.toFixed(2)} € · receitas: ${income.toFixed(2)} €`;
 }
+
 function clearHistory(){ if(confirm('Apagar histórico de todos os meses?')){ localStorage.removeItem(HS); updateHistoryBadge(); populateHistorySelect(); renderHistory(); showToast('Histórico apagado'); } }
 
-// ── DASHBOARD ────────────────────────────────────────────────
-const CASA_CATS = ['Eletricidade','Água','Gás','Supermercado'];
-const CASA_COLORS = ['#22d3ee','#34d399','#a78bfa','#fbbf24'];
-let _charts = {};
 
 function switchTab(tab){
   document.getElementById('view-app').style.display = tab==='app' ? '' : 'none';
@@ -1178,28 +1067,277 @@ function readManuals(){
     ['man-ferias-ana', 'Subsídio Férias/Natal Ana'],
     ['man-xtb',        'Juros XTB'],
     ['man-tr',         'Juros Trade Republic'],
-    ['man-revolut',    'Outros Rendimentos'],
-    ['man-irs',        'Outros Rendimentos'],
+    ['man-revolut',    'Juros Revolut'],
+    ['man-irs',        'IRS'],
     ['man-outros',     'Outros Rendimentos'],
   ];
-  for(const[id,cat] of fields){
-    const v=g(id);
-    if(v) window._manualExtras[cat]=(window._manualExtras[cat]||0)+v;
-  }
+  for(const[id,cat] of fields){ const v=g(id); if(v) window._manualExtras[cat]=(window._manualExtras[cat]||0)+v; }
 }
 
-// ── INIT ─────────────────────────────────────────────────────
 window.addEventListener('load',()=>{
+  // Setup dropzones
+  setupDZ('dz-cgd','f-cgd','st-cgd','CGD');
+  setupDZ('dz-san','f-san','st-san','Santander');
+  setupDZ('dz-extra','f-extra','st-extra','Extra');
+  // Init
   initGoogleAuth(); updateLrnBadge(); updateHistoryBadge(); populateHistorySelect();
   const now=new Date();
   document.getElementById('sel-month').value=now.getMonth()+1;
   document.getElementById('sel-year').value=now.getFullYear();
+  updateTabLabel();
+  // Listeners
+  document.getElementById('btn-go').addEventListener('click',async()=>{
+    txns=[];
+    ['CGD','Santander','Extra'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
+    txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
+    let lrn=0;
+    for(const t of txns){
+      const{cat,src}=localCat(t.desc);
+      if(cat){ t.category=cat; t.status=src==='l'?'l':'a'; if(src==='l') lrn++; }
+    }
+    setStep(2);
+    document.getElementById('card-upload').style.display='none';
+    document.getElementById('card-cat').style.display='';
+    document.getElementById('card-sum').style.display='';
+    updateTabLabel();
+    renderTxns(); renderSummary();
+    const unc=txns.filter(t=>!t.category);
+    if(unc.length>0){
+      showAILoad(true);
+      const B=25;
+      for(let i=0;i<unc.length;i+=B){
+        const batch=unc.slice(i,i+B);
+        document.getElementById('prog').style.width=Math.round(i/unc.length*100)+'%';
+        document.getElementById('ai-msg').textContent=`IA: ${i} / ${unc.length}`;
+        try{ const res=await aiCat(batch); for(const r of res){ const t=txns.find(x=>x.id===r.id); if(t&&ALL_CATS.includes(r.category)){ t.category=r.category; t.status='a'; } } }catch(e){ console.warn(e); }
+      }
+      document.getElementById('prog').style.width='100%';
+      showAILoad(false);
+      renderTxns(); renderSummary();
+    }
+    showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
+    if(accessToken) checkSheetAccess();
+  });
+  document.getElementById('tbody').addEventListener('click',e=>{
+    const qbtn = e.target.closest('.qbtn');
+    if(qbtn && !qbtn.classList.contains('ign-btn')){
+      const id = qbtn.dataset.id;
+      const cat = qbtn.dataset.cat;
+      if(cat === '__more__'){
+        // Enable the dropdown for this row
+        const sel = document.querySelector(`select.cat-sel[data-id="${id}"]`);
+        if(sel){ sel.style.opacity='1'; sel.style.pointerEvents='auto'; sel.focus(); }
+        return;
+      }
+      const t = txns.find(x=>x.id===id);
+      if(t){
+        t.category=cat; t.status='c';
+        if(cat && cat!=='Ignorar / Transferência') learnRule(t.desc,cat);
+        renderTxns(); renderSummary();
+      }
+      e.stopPropagation();
+      return;
+    }
+  });
+  document.getElementById('tbody').addEventListener('click',e=>{
+    if(!e.target.matches('button.ign-btn')) return;
+    const t=txns.find(x=>x.id===e.target.dataset.id);
+    if(t){ t.category=t.category==='Ignorar / Transferência'?'':'Ignorar / Transferência'; t.status=t.category?'c':'u'; renderTxns(); renderSummary(); }
+  });
+  document.getElementById('btn-conf-all').addEventListener('click',()=>{ txns.filter(t=>t.status==='a'&&t.category).forEach(t=>t.status='c'); renderTxns(); renderSummary(); showToast('Sugestões IA confirmadas'); });
+  document.getElementById('btn-rst-ign').addEventListener('click',()=>{ txns.filter(t=>t.category==='Ignorar / Transferência').forEach(t=>{t.category='';t.status='u';}); renderTxns(); renderSummary(); });
+  document.getElementById('btn-write').addEventListener('click',async()=>{
+  if(!accessToken){ tokenClient.requestAccessToken({prompt:''}); showToast('Liga primeiro ao Google',true); return; }
+  // Sync manual fields before writing
+  readManuals();
+  // Use calcTotals for consistency with what's shown on screen
+  const catTotals = calcTotals();
+  const totals = {};
+  for(const[cat,v] of Object.entries(catTotals)) totals[cat] = v.net;
+  if(!Object.keys(totals).length){ showToast('Nenhuma categoria com dados',true); return; }
+  document.getElementById('write-load').style.display='flex';
+  document.getElementById('btn-write').disabled=true;
+  try{
+    const n=await writeToSheet(totals);
+    const m=parseInt(document.getElementById('sel-month').value), y=document.getElementById('sel-year').value;
+    const changes = window._lastWriteChanges || [];
+    const credited = changes.filter(c=>c.diff<0).length;
+    const msg = credited > 0
+      ? `✓ ${n} células atualizadas (${credited} com reembolso deduzido) — ${MONTH_NM[m]} ${y}`
+      : `✓ ${n} células atualizadas — ${MONTH_NM[m]} ${y}`;
+    showToast(msg);
+    setSheetBar(true,`✓ ${n} valores acumulados com sucesso em ${MONTH_NM[m]} ${y}`);
+    setStep(3);
+    // Save validated transactions to history
+    const validatedEntries = txns
+      .filter(t=>t.category && t.category!=='Ignorar / Transferência')
+      .map(t=>({date:t.date,desc:t.desc,bank:t.bank,amount:t.amount,category:t.category}));
+    addToHistory(m, parseInt(y), validatedEntries);
+    updateHistoryBadge();
+    populateHistorySelect();
+  } catch(e){ showToast('Erro: '+e.message,true); setSheetBar(false,'Erro: '+e.message); console.error(e); }
+  document.getElementById('write-load').style.display='none';
+  document.getElementById('btn-write').disabled=false;
 });
-document.getElementById('sel-year').addEventListener('change',()=>{ updateTabLabel(); if(accessToken) checkSheetAccess(); });
-document.getElementById('sel-month').addEventListener('change',updateTabLabel);
-document.getElementById('hist-sel').addEventListener('change',renderHistory);
-document.getElementById('hist-srch').addEventListener('input',renderHistory);
-document.getElementById('hist-cat-flt').addEventListener('change',renderHistory);
+  document.getElementById('btn-csv').addEventListener('click',()=>{
+  const m=parseInt(document.getElementById('sel-month').value),y=document.getElementById('sel-year').value;
+  const totals={};
+  for(const t of txns){ if(!t.category||t.category==='Ignorar / Transferência') continue; totals[t.category]=(totals[t.category]||0)+t.amount; }
+  let csv=`Categoria;Linha;${MONTH_NM[m]} ${y}\n`;
+  for(const[g,cats] of Object.entries(GROUPS)) for(const cat of cats){ if(totals[cat]===undefined) continue; csv+=`${cat};${ROW_MAP[cat]||''};${Math.abs(totals[cat]).toFixed(2).replace('.',',')}\n`; }
+  dl('\ufeff'+csv,`totais_${y}_${String(m).padStart(2,'0')}.csv`,'text/csv;charset=utf-8');
+  showToast('CSV exportado');
+});
+  ['srch','flt-cat','flt-st','flt-bank'].forEach(id=>{ document.getElementById(id).addEventListener('input',renderTxns); 
+});
+  document.getElementById('sel-year').addEventListener('change',()=>{ updateTabLabel(); if(accessToken) checkSheetAccess(); });
+  document.getElementById('sel-month').addEventListener('change',updateTabLabel);
+  document.getElementById('hist-sel').addEventListener('change',renderHistory);
+  document.getElementById('hist-srch').addEventListener('input',renderHistory);
+  document.getElementById('hist-cat-flt').addEventListener('change',renderHistory);
+
+  // Main listeners
+  document.getElementById('btn-go').addEventListener('click',async()=>{
+    txns=[];
+    ['CGD','Santander','Extra'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
+    txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
+    let lrn=0;
+    for(const t of txns){
+      const{cat,src}=localCat(t.desc);
+      if(cat){ t.category=cat; t.status=src==='l'?'l':'a'; if(src==='l') lrn++; }
+    }
+    setStep(2);
+    document.getElementById('card-upload').style.display='none';
+    document.getElementById('card-cat').style.display='';
+    document.getElementById('card-sum').style.display='';
+    updateTabLabel();
+    renderTxns(); renderSummary();
+    const unc=txns.filter(t=>!t.category);
+    if(unc.length>0){
+      showAILoad(true);
+      const B=25;
+      for(let i=0;i<unc.length;i+=B){
+        const batch=unc.slice(i,i+B);
+        document.getElementById('prog').style.width=Math.round(i/unc.length*100)+'%';
+        document.getElementById('ai-msg').textContent=`IA: ${i} / ${unc.length}`;
+        try{ const res=await aiCat(batch); for(const r of res){ const t=txns.find(x=>x.id===r.id); if(t&&ALL_CATS.includes(r.category)){ t.category=r.category; t.status='a'; } } }catch(e){ console.warn(e); }
+      }
+      document.getElementById('prog').style.width='100%';
+      showAILoad(false);
+      renderTxns(); renderSummary();
+    }
+    showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
+    if(accessToken) checkSheetAccess();
+  });
+  document.getElementById('hist-sel').addEventListener('change',renderHistory);
+  document.getElementById('hist-srch').addEventListener('input',renderHistory);
+  document.getElementById('hist-cat-flt').addEventListener('change',renderHistory);
+
+  // Main listeners
+  document.getElementById('btn-go').addEventListener('click',async()=>{
+    txns=[];
+    ['CGD','Santander','Extra'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
+    txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
+    let lrn=0;
+    for(const t of txns){
+      const{cat,src}=localCat(t.desc);
+      if(cat){ t.category=cat; t.status=src==='l'?'l':'a'; if(src==='l') lrn++; }
+    }
+    setStep(2);
+    document.getElementById('card-upload').style.display='none';
+    document.getElementById('card-cat').style.display='';
+    document.getElementById('card-sum').style.display='';
+    updateTabLabel();
+    renderTxns(); renderSummary();
+    const unc=txns.filter(t=>!t.category);
+    if(unc.length>0){
+      showAILoad(true);
+      const B=25;
+      for(let i=0;i<unc.length;i+=B){
+        const batch=unc.slice(i,i+B);
+        document.getElementById('prog').style.width=Math.round(i/unc.length*100)+'%';
+        document.getElementById('ai-msg').textContent=`IA: ${i} / ${unc.length}`;
+        try{ const res=await aiCat(batch); for(const r of res){ const t=txns.find(x=>x.id===r.id); if(t&&ALL_CATS.includes(r.category)){ t.category=r.category; t.status='a'; } } }catch(e){ console.warn(e); }
+      }
+      document.getElementById('prog').style.width='100%';
+      showAILoad(false);
+      renderTxns(); renderSummary();
+    }
+    showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
+    if(accessToken) checkSheetAccess();
+  });
+  document.getElementById('hist-srch').addEventListener('input',renderHistory);
+  document.getElementById('hist-cat-flt').addEventListener('change',renderHistory);
+
+  // Main listeners
+  document.getElementById('btn-go').addEventListener('click',async()=>{
+    txns=[];
+    ['CGD','Santander','Extra'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
+    txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
+    let lrn=0;
+    for(const t of txns){
+      const{cat,src}=localCat(t.desc);
+      if(cat){ t.category=cat; t.status=src==='l'?'l':'a'; if(src==='l') lrn++; }
+    }
+    setStep(2);
+    document.getElementById('card-upload').style.display='none';
+    document.getElementById('card-cat').style.display='';
+    document.getElementById('card-sum').style.display='';
+    updateTabLabel();
+    renderTxns(); renderSummary();
+    const unc=txns.filter(t=>!t.category);
+    if(unc.length>0){
+      showAILoad(true);
+      const B=25;
+      for(let i=0;i<unc.length;i+=B){
+        const batch=unc.slice(i,i+B);
+        document.getElementById('prog').style.width=Math.round(i/unc.length*100)+'%';
+        document.getElementById('ai-msg').textContent=`IA: ${i} / ${unc.length}`;
+        try{ const res=await aiCat(batch); for(const r of res){ const t=txns.find(x=>x.id===r.id); if(t&&ALL_CATS.includes(r.category)){ t.category=r.category; t.status='a'; } } }catch(e){ console.warn(e); }
+      }
+      document.getElementById('prog').style.width='100%';
+      showAILoad(false);
+      renderTxns(); renderSummary();
+    }
+    showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
+    if(accessToken) checkSheetAccess();
+  });
+  document.getElementById('hist-cat-flt').addEventListener('change',renderHistory);
+
+  // Main listeners
+  document.getElementById('btn-go').addEventListener('click',async()=>{
+    txns=[];
+    ['CGD','Santander','Extra'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
+    txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
+    let lrn=0;
+    for(const t of txns){
+      const{cat,src}=localCat(t.desc);
+      if(cat){ t.category=cat; t.status=src==='l'?'l':'a'; if(src==='l') lrn++; }
+    }
+    setStep(2);
+    document.getElementById('card-upload').style.display='none';
+    document.getElementById('card-cat').style.display='';
+    document.getElementById('card-sum').style.display='';
+    updateTabLabel();
+    renderTxns(); renderSummary();
+    const unc=txns.filter(t=>!t.category);
+    if(unc.length>0){
+      showAILoad(true);
+      const B=25;
+      for(let i=0;i<unc.length;i+=B){
+        const batch=unc.slice(i,i+B);
+        document.getElementById('prog').style.width=Math.round(i/unc.length*100)+'%';
+        document.getElementById('ai-msg').textContent=`IA: ${i} / ${unc.length}`;
+        try{ const res=await aiCat(batch); for(const r of res){ const t=txns.find(x=>x.id===r.id); if(t&&ALL_CATS.includes(r.category)){ t.category=r.category; t.status='a'; } } }catch(e){ console.warn(e); }
+      }
+      document.getElementById('prog').style.width='100%';
+      showAILoad(false);
+      renderTxns(); renderSummary();
+    }
+    showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
+    if(accessToken) checkSheetAccess();
+  });
+});
 </script>
 </body>
 </html>
