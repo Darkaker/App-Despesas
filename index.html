@@ -1178,19 +1178,6 @@ function readManuals(){
     ['man-ferias-ana', 'Subsídio Férias/Natal Ana'],
     ['man-xtb',        'Juros XTB'],
     ['man-tr',         'Juros Trade Republic'],
-    ['man-revolut',    'Juros Revolut'],
-    ['man-irs',        'IRS'],
-    ['man-outros',     'Outros Rendimentos'],
-  ];
-  for(const[id,cat] of fields){ const v=g(id); if(v) window._manualExtras[cat]=(window._manualExtras[cat]||0)+v; }
-};
-  const fields = [
-    ['man-sub-nuno',   'Subsídio Alimentação Nuno'],
-    ['man-sub-ana',    'Subsídio Alimentação Ana'],
-    ['man-ferias-nuno','Subsídio Férias/Natal Nuno'],
-    ['man-ferias-ana', 'Subsídio Férias/Natal Ana'],
-    ['man-xtb',        'Juros XTB'],
-    ['man-tr',         'Juros Trade Republic'],
     ['man-revolut',    'Outros Rendimentos'],
     ['man-irs',        'Outros Rendimentos'],
     ['man-outros',     'Outros Rendimentos'],
@@ -1199,20 +1186,6 @@ function readManuals(){
     const v=g(id);
     if(v) window._manualExtras[cat]=(window._manualExtras[cat]||0)+v;
   }
-};
-  const fields = [
-    ['man-sub-nuno',   'Subsídio Alimentação Nuno'],
-    ['man-sub-ana',    'Subsídio Alimentação Ana'],
-    ['man-ferias-nuno','Subsídio Férias/Natal Nuno'],
-    ['man-ferias-ana', 'Subsídio Férias/Natal Ana'],
-    ['man-xtb',        'Juros XTB'],
-    ['man-tr',         'Juros Trade Republic'],
-    ['man-revolut',    'Juros Revolut'],
-    ['man-outros',     'Outros Rendimentos'],
-    ['man-irs',        'IRS'],
-    ['man-creditos',   'Créditos Vários'],
-  ];
-  for(const[id,cat] of fields){ const v=g(id); if(v) window._manualExtras[cat]=v; }
 }
 
 // ── INIT ─────────────────────────────────────────────────────
