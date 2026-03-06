@@ -853,7 +853,16 @@ function renderSummary(){
     const fSt=document.getElementById('flt-st').value;
     const fBank=document.getElementById('flt-bank').value;
     let list=txns;
-    if(srch) list=list.filter(t=>t.desc.toLowerCase().includes(srch)||t.category.toLowerCase().includes(srch));
+    if(srch){
+      const srchDot = srch.replace(',','.');
+      const srchComma = srch.replace('.',',');
+      list=list.filter(t=>
+        t.desc.toLowerCase().includes(srch) ||
+        (t.category||'').toLowerCase().includes(srch) ||
+        Math.abs(t.amount).toFixed(2).includes(srchDot) ||
+        Math.abs(t.amount).toFixed(2).replace('.',',').includes(srchComma)
+      );
+    }
     if(fCat) list=list.filter(t=>t.category===fCat);
     if(fSt==='u') list=list.filter(t=>!t.category);
     else if(fSt==='l') list=list.filter(t=>t.status==='l');
@@ -875,7 +884,7 @@ function renderSummary(){
     const creditHint = isCreditNocat ? '<span class="btag" style="background:rgba(167,139,250,.15);color:var(--acc2);margin-left:4px">crédito</span>' : '';
     const quickCats = getQuickCats(t.desc, t.category);
     const qBtns = quickCats.map(c=>`<button class="qbtn${t.category===c?' active':''}" data-id="${t.id}" data-cat="${c}">${c}</button>`).join('');
-    tr.innerHTML=`<td class="td-date">${t.date}</td><td class="td-desc" title="${t.desc}">${t.desc}${reimbTag}${creditHint||""}<div class="qbtns">${qBtns}<button class="qbtn more" data-id="${t.id}" data-cat="__more__">+ outras</button></div></td><td><span class="btag ${t.bank==='CGD'?'b-cgd':'b-san'}">${t.bank}</span></td><td class="td-amt ${t.amount<0?'deb':'crd'}">${t.amount<0?'':'+'}${Math.abs(t.amount).toFixed(2)} €</td><td><select class="${cls}" data-id="${t.id}" style="${t.category&&!quickCats.includes(t.category)?'':'opacity:.5;pointer-events:none'}">${opts}</select></td><td><button class="ign-btn${ign?' on':''}" data-id="${t.id}">${ign?'✓':'ign'}</button></td>`;
+    tr.innerHTML=`<td class="td-date">${t.date}</td><td class="td-desc" title="${t.desc}">${t.desc}${reimbTag}${creditHint||""}<div class="qbtns">${qBtns}<button class="qbtn more" data-id="${t.id}" data-cat="__more__">+ outras</button></div></td><td><span class="btag ${t.bank==='CGD'?'b-cgd':'b-san'}">${t.bank}</span></td><td class="td-amt ${t.amount<0?'deb':'crd'}">${t.amount<0?'':'+'}${Math.abs(t.amount).toFixed(2)} €</td><td><select class="${cls}" data-id="${t.id}" style="">${opts}</select></td><td><button class="ign-btn${ign?' on':''}" data-id="${t.id}">${ign?'✓':'ign'}</button></td>`;
       tbody.appendChild(tr);
     }
     const unc=txns.filter(t=>!t.category).length, lrn=txns.filter(t=>t.status==='l').length;
@@ -1125,7 +1134,6 @@ window.addEventListener('load',()=>{
       const id = qbtn.dataset.id;
       const cat = qbtn.dataset.cat;
       if(cat === '__more__'){
-        // Enable the dropdown for this row
         const sel = document.querySelector(`select.cat-sel[data-id="${id}"]`);
         if(sel){ sel.style.opacity='1'; sel.style.pointerEvents='auto'; sel.focus(); }
         return;
@@ -1138,6 +1146,18 @@ window.addEventListener('load',()=>{
       }
       e.stopPropagation();
       return;
+    }
+  });
+
+  document.getElementById('tbody').addEventListener('change',e=>{
+    if(!e.target.matches('select.cat-sel')) return;
+    const id = e.target.dataset.id;
+    const cat = e.target.value;
+    const t = txns.find(x=>x.id===id);
+    if(t){
+      t.category=cat; t.status='c';
+      if(cat && cat!=='Ignorar / Transferência') learnRule(t.desc,cat);
+      renderTxns(); renderSummary();
     }
   });
   document.getElementById('tbody').addEventListener('click',e=>{
