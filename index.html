@@ -259,6 +259,24 @@ tr.ignored td{opacity:.35}
   <div class="stats" id="stats"></div>
   <div class="sum-grid" id="sum-grid"></div>
   <div class="divider"></div>
+  <div class="card-hdr">Entradas Manuais</div>
+  <div style="background:var(--s2);border:1px solid var(--b1);border-radius:6px;padding:14px;margin-bottom:14px">
+    <p class="info" style="margin-bottom:12px">Valores que não constam nos extratos bancários (ex: cartão refeição, subsídios em dinheiro).</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px" id="manual-grid">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Subsídio Alimentação Nuno</label>
+        <input type="number" id="man-sub-nuno" placeholder="0.00" step="0.01" min="0" style="width:100%">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Subsídio Alimentação Ana</label>
+        <input type="number" id="man-sub-ana" placeholder="0.00" step="0.01" min="0" style="width:100%">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-size:.62rem;color:var(--m2);font-family:'Geist Mono',monospace">Outros Rendimentos (manual)</label>
+        <input type="number" id="man-outros" placeholder="0.00" step="0.01" min="0" style="width:100%">
+      </div>
+    </div>
+  </div>
   <div class="card-hdr">
     Publicar na Google Sheet
     <span id="tab-label" class="badge bb"></span>
@@ -431,7 +449,7 @@ const RULES = [
   [/comissao.*cgd|comissão.*cgd|comissao fora/i,'Comissões CGD'],
   [/comissao.*santander|comissão.*santander/i,'Comissões Santander'],
   [/\bppr\b|save.*grow/i,'PPR Save & Grow NO'],
-  [/trf\.|transferência de |transf |mb way|mbway|levantamento/i,'Ignorar / Transferência'],
+  [/trf\.|transferência de |transf |mb way de |mbway de |levantamento|trf mb way|pagamento mb way/i,'Ignorar / Transferência'],
   // Reembolsos seguros / ADSE
   [/reembolso.*adse|adse.*reemb|adse/i,'Reembolsos Seguros/ADSE'],
   [/reembolso.*seguro|seguro.*reemb|fidelidade.*reemb|ocidental.*reemb|aegon.*reemb/i,'Reembolsos Seguros/ADSE'],
@@ -499,15 +517,24 @@ function getQuickCats(desc, currentCat, n=6){
   }
 
   // Contextual hints from description keywords
-  const hints = [
+    const txnRef = txns.find(t=>t.desc===desc);
+  const isCreditTxn = txnRef && txnRef.amount > 0;
+  const hints = isCreditTxn ? [
+    [/mb way|mbway|trf/i,'Outros Rendimentos',10],
+    [/reembolso|seguro|adse/i,'Reembolsos Seguros/ADSE',10],
+    [/salario|ordenado/i,'Salario Nuno',10],
+    [/rendas/i,'Rendas',5],
+    [/.*/,'Outros Rendimentos',3],
+    [/.*/,'Reembolsos Seguros\/ADSE',2],
+  ] : [
     [/mercado|pingo|continente|lidl|aldi|froiz/i,'Supermercado',8],
-    [/galp|bp|repsol|combusti/i,'Combustível',8],
-    [/farmacia|farmácia/i,'Medicamentos/Óculos/Outros',8],
-    [/restaurante|cafe|café|pizza|mcdonald/i,'Restaurantes',8],
-    [/nos |vodafone|meo /i,'Internet/TV/Tlm',8],
+    [/galp|bp|repsol|combusti/i,'Combustivel',8],
+    [/farmacia/i,'Medicamentos\/Oculos\/Outros',8],
+    [/restaurante|cafe|pizza|mcdonald/i,'Restaurantes',8],
+    [/nos |vodafone|meo /i,'Internet\/TV\/Tlm',8],
     [/edp|eletric/i,'Eletricidade',8],
-    [/clinica|médico|consulta/i,'Consultas',8],
-    [/veterinari|vet/i,'Veterinário',8],
+    [/clinica|medico|consulta/i,'Consultas',8],
+    [/veterinari/i,'Veterinario',8],
   ];
   for(const[re,cat,w] of hints){ if(re.test(desc)) scores[cat]=(scores[cat]||0)+w; }
 
@@ -613,26 +640,32 @@ async function writeToSheet(totalsObj){
     existingValues[cats[i]] = val ? parseFloat(String(val).replace(',','.')) || 0 : 0;
   });
 
-  // Accumulate: existing + new (new total can be positive=income or negative=expense)
+  // Accumulate: existing + new
+  // transactions: debits are negative, credits are positive
+  // sheet stores expenses as positive numbers
+  // so for expenses: sheet_value += abs(debits) - credits = -newAmount
+  // for receitas: sheet_value += newAmount (already positive)
   const updates = [];
-  const changes = []; // for toast message
+  const changes = [];
+  // Also include manual entries
+  const manualExtras = window._manualExtras || {};
   for(const cat of cats){
     const row = ROW_MAP[cat];
     const existing = existingValues[cat] || 0;
-    const newAmount = totalsObj[cat]; // negative = expense, positive = income/credit
+    const newAmount = totalsObj[cat]; // sum of transaction amounts (neg=debit, pos=credit)
+    const manual = manualExtras[cat] || 0;
 
-    let finalVal;
+    let toAdd;
     if(isReceita(cat)){
-      // Receitas: just accumulate positively
-      finalVal = existing + Math.abs(newAmount);
+      // Income: add absolute value of income transactions + manual
+      toAdd = Math.abs(newAmount) + manual;
     } else {
-      // Despesas: existing is stored as positive, newAmount negative=expense positive=reimbursement
-      // expense adds to existing, reimbursement subtracts
-      finalVal = existing + newAmount; // newAmount already has sign (-expense, +reimbursement)
-      if(finalVal < 0) finalVal = 0; // never below zero for expenses
+      // Expense: -newAmount converts (neg debits - pos credits) to positive net expense
+      // e.g. -105 + 50 = -55 → -(-55) = 55 net expense
+      toAdd = -newAmount + manual;
     }
 
-    finalVal = parseFloat(finalVal.toFixed(2));
+    const finalVal = parseFloat(Math.max(0, existing + toAdd).toFixed(2));
     updates.push({ range:`'${tab}'!${col}${row}`, values:[[finalVal]] });
     if(existing !== finalVal) changes.push({cat, existing, finalVal, diff: finalVal - existing});
   }
@@ -796,10 +829,12 @@ function renderTxns(){
     const opts=ALL_CATS.map(c=>`<option value="${c}"${t.category===c?' selected':''}>${c}</option>`).join('');
       // Credit in expense category = reimbursement indicator
   const isReimb = t.amount > 0 && t.category && t.category !== 'Ignorar / Transferência' && !GROUPS['Receitas'].includes(t.category);
-  const reimbTag = isReimb ? '<span class="btag" style="background:rgba(251,191,36,.15);color:var(--yel);margin-left:4px" title="Crédito deduz desta categoria">↩ reimb.</span>' : '';
+  const reimbTag = isReimb ? '<span class="btag" style="background:rgba(251,191,36,.15);color:var(--yel);margin-left:4px" title="Crédito — deduz da categoria">↩ deduz</span>' : '';
+  const isCreditNocat = t.amount > 0 && !t.category;
+  const creditHint = isCreditNocat ? '<span class="btag" style="background:rgba(167,139,250,.15);color:var(--acc2);margin-left:4px">crédito</span>' : '';
   const quickCats = getQuickCats(t.desc, t.category);
   const qBtns = quickCats.map(c=>`<button class="qbtn${t.category===c?' active':''}" data-id="${t.id}" data-cat="${c}">${c}</button>`).join('');
-  tr.innerHTML=`<td class="td-date">${t.date}</td><td class="td-desc" title="${t.desc}">${t.desc}${reimbTag}<div class="qbtns">${qBtns}<button class="qbtn more" data-id="${t.id}" data-cat="__more__">+ outras</button></div></td><td><span class="btag ${t.bank==='CGD'?'b-cgd':'b-san'}">${t.bank}</span></td><td class="td-amt ${t.amount<0?'deb':'crd'}">${t.amount<0?'':'+'}${Math.abs(t.amount).toFixed(2)} €</td><td><select class="${cls}" data-id="${t.id}" style="${t.category&&!quickCats.includes(t.category)?'':'opacity:.5;pointer-events:none'}">${opts}</select></td><td><button class="ign-btn${ign?' on':''}" data-id="${t.id}">${ign?'✓':'ign'}</button></td>`;
+  tr.innerHTML=`<td class="td-date">${t.date}</td><td class="td-desc" title="${t.desc}">${t.desc}${reimbTag}${creditHint||""}<div class="qbtns">${qBtns}<button class="qbtn more" data-id="${t.id}" data-cat="__more__">+ outras</button></div></td><td><span class="btag ${t.bank==='CGD'?'b-cgd':'b-san'}">${t.bank}</span></td><td class="td-amt ${t.amount<0?'deb':'crd'}">${t.amount<0?'':'+'}${Math.abs(t.amount).toFixed(2)} €</td><td><select class="${cls}" data-id="${t.id}" style="${t.category&&!quickCats.includes(t.category)?'':'opacity:.5;pointer-events:none'}">${opts}</select></td><td><button class="ign-btn${ign?' on':''}" data-id="${t.id}">${ign?'✓':'ign'}</button></td>`;
     tbody.appendChild(tr);
   }
   const unc=txns.filter(t=>!t.category).length, lrn=txns.filter(t=>t.status==='l').length;
@@ -875,7 +910,15 @@ document.getElementById('btn-write').addEventListener('click',async()=>{
   if(!accessToken){ tokenClient.requestAccessToken({prompt:''}); showToast('Liga primeiro ao Google',true); return; }
   const totals={};
   for(const t of txns){ if(!t.category||t.category==='Ignorar / Transferência') continue; totals[t.category]=(totals[t.category]||0)+t.amount; }
-  if(!Object.keys(totals).length){ showToast('Nenhuma categoria com dados',true); return; }
+  // Add manual entries
+  const manNuno = parseFloat(document.getElementById('man-sub-nuno')?.value||0)||0;
+  const manAna  = parseFloat(document.getElementById('man-sub-ana')?.value||0)||0;
+  const manOutros = parseFloat(document.getElementById('man-outros')?.value||0)||0;
+  window._manualExtras = {};
+  if(manNuno)  { window._manualExtras['Subsídio Alimentação Nuno'] = manNuno; totals['Subsídio Alimentação Nuno'] = totals['Subsídio Alimentação Nuno']||0; }
+  if(manAna)   { window._manualExtras['Subsídio Alimentação Ana']  = manAna;  totals['Subsídio Alimentação Ana']  = totals['Subsídio Alimentação Ana'] ||0; }
+  if(manOutros){ window._manualExtras['Outros Rendimentos'] = manOutros; totals['Outros Rendimentos'] = totals['Outros Rendimentos']||0; }
+  if(!Object.keys(totals).length && !Object.keys(window._manualExtras||{}).length){ showToast('Nenhuma categoria com dados',true); return; }
   document.getElementById('write-load').style.display='flex';
   document.getElementById('btn-write').disabled=true;
   try{
