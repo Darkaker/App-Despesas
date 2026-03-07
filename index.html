@@ -1,36 +1,4 @@
-<!DOC
-<div id="view-hist" style="display:none">
-<!-- HISTORY -->
-<div class="card" style="padding:14px 20px">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-    <div style="display:flex;align-items:center;gap:8px">
-      <span style="font-size:.62rem;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:var(--m2);font-family:'Geist Mono',monospace">Histórico</span>
-      <span id="hist-badge" class="badge bb"></span>
-    </div>
-    <div class="btn-row">
-      <select id="hist-sel" class="cat-sel" style="min-width:160px"><option value="">Selecionar mês...</option></select>
-      <button class="btn sec" style="font-size:.7rem;padding:5px 11px" onclick="clearHistory()">✕ Limpar</button>
-    </div>
-  </div>
-  <p class="info" style="margin-top:7px;margin-bottom:12px">Consulta despesas de meses anteriores para confirmar duplicados ou referência.</p>
-  <div id="hist-content" style="display:none">
-    <div class="frow" style="margin-bottom:8px">
-      <input class="search" id="hist-srch" placeholder="pesquisar..." style="width:200px">
-      <select class="cat-sel" id="hist-cat-flt" style="min-width:150px"><option value="">todas categorias</option></select>
-    </div>
-    <div class="tbl-wrap" style="max-height:320px">
-      <table><thead><tr>
-        <th>Data</th><th>Descrição</th><th>Banco</th>
-        <th style="text-align:right">Valor</th><th>Categoria</th>
-      </tr></thead>
-      <tbody id="hist-tbody"></tbody></table>
-    </div>
-    <div id="hist-stats" style="margin-top:10px;font-size:.7rem;font-family:'Geist Mono',monospace;color:var(--m2)"></div>
-  </div>
-</div>
-
-</
-</div>TYPE html>
+<!DOCTYPE html>
 <html lang="pt">
 <head>
 <meta charset="UTF-8">
@@ -436,6 +404,36 @@ div><!-- /view-app -->
   </div>
 </div>
 
+
+<div id="view-hist" style="display:none">
+<div class="card" style="padding:14px 20px">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:.62rem;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:var(--m2);font-family:'Geist Mono',monospace">Histórico</span>
+      <span id="hist-badge" class="badge bb"></span>
+    </div>
+    <div class="btn-row">
+      <select id="hist-sel" class="cat-sel" style="min-width:160px"><option value="">Selecionar mês...</option></select>
+      <button class="btn sec" style="font-size:.7rem;padding:5px 11px" onclick="clearHistory()">✕ Limpar</button>
+    </div>
+  </div>
+  <p class="info" style="margin-top:7px;margin-bottom:12px">Consulta despesas de meses anteriores para confirmar duplicados ou referência.</p>
+  <div id="hist-content" style="display:none">
+    <div class="frow" style="margin-bottom:8px">
+      <input class="search" id="hist-srch" placeholder="pesquisar..." style="width:200px">
+      <select class="cat-sel" id="hist-cat-flt" style="min-width:150px"><option value="">todas categorias</option></select>
+    </div>
+    <div class="tbl-wrap" style="max-height:320px">
+      <table><thead><tr>
+        <th>Data</th><th>Descrição</th><th>Banco</th>
+        <th style="text-align:right">Valor</th><th>Categoria</th>
+      </tr></thead>
+      <tbody id="hist-tbody"></tbody></table>
+    </div>
+    <div id="hist-stats" style="margin-top:10px;font-size:.7rem;font-family:'Geist Mono',monospace;color:var(--m2)"></div>
+  </div>
+</div>
+</div>
 </div><!-- /wrap -->
 <div class="toast" id="toast"></div>
 
