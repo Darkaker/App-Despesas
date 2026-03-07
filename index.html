@@ -1,4 +1,36 @@
-<!DOCTYPE html>
+<!DOC
+<div id="view-hist" style="display:none">
+<!-- HISTORY -->
+<div class="card" style="padding:14px 20px">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:.62rem;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:var(--m2);font-family:'Geist Mono',monospace">Histórico</span>
+      <span id="hist-badge" class="badge bb"></span>
+    </div>
+    <div class="btn-row">
+      <select id="hist-sel" class="cat-sel" style="min-width:160px"><option value="">Selecionar mês...</option></select>
+      <button class="btn sec" style="font-size:.7rem;padding:5px 11px" onclick="clearHistory()">✕ Limpar</button>
+    </div>
+  </div>
+  <p class="info" style="margin-top:7px;margin-bottom:12px">Consulta despesas de meses anteriores para confirmar duplicados ou referência.</p>
+  <div id="hist-content" style="display:none">
+    <div class="frow" style="margin-bottom:8px">
+      <input class="search" id="hist-srch" placeholder="pesquisar..." style="width:200px">
+      <select class="cat-sel" id="hist-cat-flt" style="min-width:150px"><option value="">todas categorias</option></select>
+    </div>
+    <div class="tbl-wrap" style="max-height:320px">
+      <table><thead><tr>
+        <th>Data</th><th>Descrição</th><th>Banco</th>
+        <th style="text-align:right">Valor</th><th>Categoria</th>
+      </tr></thead>
+      <tbody id="hist-tbody"></tbody></table>
+    </div>
+    <div id="hist-stats" style="margin-top:10px;font-size:.7rem;font-family:'Geist Mono',monospace;color:var(--m2)"></div>
+  </div>
+</div>
+
+</
+</div>TYPE html>
 <html lang="pt">
 <head>
 <meta charset="UTF-8">
@@ -187,6 +219,7 @@ th.sortable:hover{color:var(--acc)}
 <div class="nav-tabs">
   <button class="nav-tab active" onclick="switchTab('app')" id="tab-app">⚙ App</button>
   <button class="nav-tab" onclick="switchTab('dash')" id="tab-dash">📊 Dashboard</button>
+  <button class="nav-tab" onclick="switchTab('hist')" id="tab-hist">🗂 Histórico</button>
 </div>
 <div id="view-app">
 <div class="steps">
@@ -364,36 +397,7 @@ th.sortable:hover{color:var(--acc)}
   <p class="info" style="margin-top:7px">Cada correção que fazes é memorizada localmente. Na próxima vez, a mesma transação é categorizada automaticamente.</p>
 </div>
 
-<!-- HISTORY -->
-<div class="card" style="padding:14px 20px">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-    <div style="display:flex;align-items:center;gap:8px">
-      <span style="font-size:.62rem;font-weight:600;text-transform:uppercase;letter-spacing:2px;color:var(--m2);font-family:'Geist Mono',monospace">Histórico</span>
-      <span id="hist-badge" class="badge bb"></span>
-    </div>
-    <div class="btn-row">
-      <select id="hist-sel" class="cat-sel" style="min-width:160px"><option value="">Selecionar mês...</option></select>
-      <button class="btn sec" style="font-size:.7rem;padding:5px 11px" onclick="clearHistory()">✕ Limpar</button>
-    </div>
-  </div>
-  <p class="info" style="margin-top:7px;margin-bottom:12px">Consulta despesas de meses anteriores para confirmar duplicados ou referência.</p>
-  <div id="hist-content" style="display:none">
-    <div class="frow" style="margin-bottom:8px">
-      <input class="search" id="hist-srch" placeholder="pesquisar..." style="width:200px">
-      <select class="cat-sel" id="hist-cat-flt" style="min-width:150px"><option value="">todas categorias</option></select>
-    </div>
-    <div class="tbl-wrap" style="max-height:320px">
-      <table><thead><tr>
-        <th>Data</th><th>Descrição</th><th>Banco</th>
-        <th style="text-align:right">Valor</th><th>Categoria</th>
-      </tr></thead>
-      <tbody id="hist-tbody"></tbody></table>
-    </div>
-    <div id="hist-stats" style="margin-top:10px;font-size:.7rem;font-family:'Geist Mono',monospace;color:var(--m2)"></div>
-  </div>
-</div>
-
-</div><!-- /view-app -->
+div><!-- /view-app -->
 
 <!-- DASHBOARD VIEW -->
 <div id="view-dash" style="display:none">
@@ -1059,9 +1063,10 @@ function clearHistory(){ if(confirm('Apagar histórico de todos os meses?')){ lo
 function switchTab(tab){
   document.getElementById('view-app').style.display = tab==='app' ? '' : 'none';
   document.getElementById('view-dash').style.display = tab==='dash' ? '' : 'none';
-  document.getElementById('tab-app').className = 'nav-tab' + (tab==='app'?' active':'');
-  document.getElementById('tab-dash').className = 'nav-tab' + (tab==='dash'?' active':'');
+  document.getElementById('view-hist').style.display = tab==='hist' ? '' : 'none';
+  ['app','dash','hist'].forEach(t=>{ document.getElementById('tab-'+t).className='nav-tab'+(tab===t?' active':''); });
   if(tab==='dash') renderDashboard();
+  if(tab==='hist'){ populateHistorySelect(); renderHistory(); }
 }
 
 function getLast12Months(){
@@ -1215,6 +1220,8 @@ window.addEventListener('load', () => {
   setupDZ('dz-san','f-san','st-san','Santander');
   setupDZ('dz-extra','f-extra','st-extra','CR');
   initGoogleAuth(); updateLrnBadge(); updateHistoryBadge(); populateHistorySelect();
+  // Auto-switch to dashboard if history exists (fresh open)
+  if(getHistory().length > 0) { switchTab('dash'); }
   const now=new Date();
   document.getElementById('sel-month').value=now.getMonth()+1;
   document.getElementById('sel-year').value=now.getFullYear();
@@ -1235,6 +1242,11 @@ window.addEventListener('load', () => {
     document.getElementById('card-sum').style.display='';
     updateTabLabel();
     renderTxns(); renderSummary();
+    // Save to history immediately after local categorization (before AI & write)
+    { const m=parseInt(document.getElementById('sel-month').value), y=parseInt(document.getElementById('sel-year').value);
+      const preEntries=txns.filter(t=>t.category&&t.category!=='Ignorar / Transferência').map(t=>({date:t.date,desc:t.desc,bank:t.bank,amount:t.amount,category:t.category}));
+      if(preEntries.length) addToHistory(m,y,preEntries);
+      updateHistoryBadge(); populateHistorySelect(); }
     const unc=txns.filter(t=>!t.category);
     if(unc.length>0){
       showAILoad(true);
@@ -1248,6 +1260,11 @@ window.addEventListener('load', () => {
       document.getElementById('prog').style.width='100%';
       showAILoad(false);
       renderTxns(); renderSummary();
+      // Update history with AI-enriched categories
+      { const m=parseInt(document.getElementById('sel-month').value), y=parseInt(document.getElementById('sel-year').value);
+        const aiEntries=txns.filter(t=>t.category&&t.category!=='Ignorar / Transferência').map(t=>({date:t.date,desc:t.desc,bank:t.bank,amount:t.amount,category:t.category}));
+        if(aiEntries.length) addToHistory(m,y,aiEntries);
+        updateHistoryBadge(); populateHistorySelect(); }
     }
     showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
     if(accessToken) checkSheetAccess();
@@ -1365,6 +1382,7 @@ if(!e.target.matches('button.ign-btn')) return;
   document.getElementById('sel-month').addEventListener('change',updateTabLabel);
   document.getElementById('tab-app').addEventListener('click',()=>switchTab('app'));
   document.getElementById('tab-dash').addEventListener('click',()=>switchTab('dash'));
+  document.getElementById('tab-hist').addEventListener('click',()=>switchTab('hist'));
   document.getElementById('hist-sel').addEventListener('change',renderHistory);
   document.getElementById('hist-srch').addEventListener('input',renderHistory);
   document.getElementById('hist-cat-flt').addEventListener('change',renderHistory);
