@@ -737,8 +737,16 @@ function setupDZ(dzId,inputId,stId,bank){
 async function loadFile(file,bank,dz,stId){
   try{
     const arr=await readBin(file); let rows=[];
-    if(bank==='CGD'){ const txt=await readTxt(file); rows=parseCGD(txt); }
-    else{ const wb=XLSX.read(arr,{type:'array'}); rows=parseSantander(wb); }
+    if(bank==='CGD'){
+      const txt=await readTxt(file); rows=parseCGD(txt);
+    } else if(bank==='Santander'){
+      const wb=XLSX.read(arr,{type:'array',cellDates:true}); rows=parseSantander(wb);
+    } else if(bank==='CR'){
+      const wb=XLSX.read(arr,{type:'array',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:false,dateNF:'dd-mm-yyyy'});
+      rows=parseCR(raw);
+    }
     bankData[bank]=rows; dz.classList.add('ok');
     document.getElementById(stId).textContent=`✓ ${rows.length} movimentos`;
     checkReady();
@@ -798,14 +806,12 @@ function parseCR(rows){
     if(!row || row.length < 3) continue;
     let [rawDate, desc, amt] = row;
     if(!desc || amt===undefined || amt===null || isNaN(parseFloat(amt))) continue;
-    // Parse date - may come as JS Date object or string
-    let date;
-    if(rawDate instanceof Date || (typeof rawDate === 'string' && rawDate.includes('T'))){
-      const d = new Date(rawDate);
-      if(isNaN(d.getTime())) continue;
-      date = `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`;
-    } else {
-      date = String(rawDate).trim();
+    // Parse date - comes as 'dd-mm-yyyy' string from sheet_to_json with dateNF
+    let date = String(rawDate).trim();
+    // Normalize various formats to dd-mm-yyyy
+    if(date.includes('/')){
+      const parts = date.split('/');
+      if(parts.length===3) date = parts[0].padStart(2,'0')+'-'+parts[1].padStart(2,'0')+'-'+parts[2];
     }
     const amount = -Math.abs(parseFloat(amt)); // always expense (negative)
     out.push({
