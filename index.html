@@ -72,6 +72,7 @@ tr.ignored td{opacity:.35}
 .btag{font-size:.6rem;padding:2px 6px;border-radius:2px;font-weight:700;font-family:'Geist Mono',monospace;white-space:nowrap}
 .b-cgd{background:rgba(34,211,238,.1);color:var(--acc)}
 .b-san{background:rgba(167,139,250,.1);color:var(--acc2)}
+.b-cr{background:rgba(34,211,238,.1);color:#22d3ee}
 .cat-sel{background:var(--s2);border:1px solid var(--b1);border-radius:3px;color:var(--txt);padding:4px 7px;font-family:'Geist Mono',monospace;font-size:.7rem;outline:none;min-width:165px;max-width:210px}
 .cat-sel option{background:#161b24;color:#e2e8f0}
 .cat-sel:focus{border-color:var(--acc)}
@@ -201,8 +202,8 @@ tr.ignored td{opacity:.35}
     </div>
     <div class="dz" id="dz-extra">
       <input type="file" id="f-extra" accept=".csv,.xls,.xlsx">
-      <div class="ico">➕</div><div class="lbl">Outro banco</div>
-      <div class="hint">opcional</div><div class="st" id="st-extra"></div>
+      <div class="ico">🍽</div><div class="lbl">Cartão Refeição</div>
+      <div class="hint">.xlsx · opcional</div><div class="st" id="st-extra"></div>
     </div>
   </div>
   <div class="btn-row">
@@ -390,6 +391,11 @@ tr.ignored td{opacity:.35}
       <div class="chart-sub">Eletricidade · Água · Gás</div>
       <div class="chart-wrap"><canvas id="chart-util"></canvas></div>
     </div>
+    <div class="chart-card full">
+      <div class="chart-title">Investimentos</div>
+      <div class="chart-sub">PPR Save &amp; Grow NO · PPR Save &amp; Grow AO · SP500 XTB</div>
+      <div class="chart-wrap tall"><canvas id="chart-invest"></canvas></div>
+    </div>
   </div>
   <div id="dash-nodata" class="no-data" style="display:none">
     <div style="font-size:2rem;margin-bottom:12px">📊</div>
@@ -486,7 +492,7 @@ const RULES = [
 // ── LEARNING ─────────────────────────────────────────────────
 const LS='despesas_v2';
 
-let txns=[], bankData={CGD:null,Santander:null,Extra:null};
+let txns=[], bankData={CGD:null,Santander:null,CR:null};
 let tokenClient=null, accessToken=null, tokenExpiry=0;
 const HS = 'despesas_history_v1';
 let _charts = {};
@@ -766,6 +772,31 @@ function parseSantander(wb){
   return out;
 }
 
+function parseCR(rows){
+  // Excel: [date, description, amount] - no header, amounts are positive expenses
+  const out=[];
+  for(const row of rows){
+    if(!row || row.length < 3) continue;
+    let [rawDate, desc, amt] = row;
+    if(!desc || amt===undefined || amt===null || isNaN(parseFloat(amt))) continue;
+    // Parse date - may come as JS Date object or string
+    let date;
+    if(rawDate instanceof Date || (typeof rawDate === 'string' && rawDate.includes('T'))){
+      const d = new Date(rawDate);
+      if(isNaN(d.getTime())) continue;
+      date = `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`;
+    } else {
+      date = String(rawDate).trim();
+    }
+    const amount = -Math.abs(parseFloat(amt)); // always expense (negative)
+    out.push({
+      id: 'cr_'+Math.random().toString(36).slice(2),
+      date, desc: String(desc).trim(), amount,
+      bank:'CR', status:'u', category:''
+    });
+  }
+  return out;
+}
 function parseEUR(s){ return parseFloat(String(s||'').replace(/\./g,'').replace(',','.'))||0; }
 function mkT(date,desc,amount,bank){ return {id:Math.random().toString(36).slice(2,10),date,desc,amount,bank,category:'',status:'u'}; }
 
@@ -886,7 +917,7 @@ function renderSummary(){
     const creditHint = isCreditNocat ? '<span class="btag" style="background:rgba(167,139,250,.15);color:var(--acc2);margin-left:4px">crédito</span>' : '';
     const quickCats = getQuickCats(t.desc, t.category);
     const qBtns = quickCats.map(c=>`<button class="qbtn${t.category===c?' active':''}" data-id="${t.id}" data-cat="${c}">${c}</button>`).join('');
-    tr.innerHTML=`<td class="td-date">${t.date}</td><td class="td-desc" title="${t.desc}">${t.desc}${reimbTag}${creditHint||""}<div class="qbtns">${qBtns}<button class="qbtn more" data-id="${t.id}" data-cat="__more__">+ outras</button></div></td><td><span class="btag ${t.bank==='CGD'?'b-cgd':'b-san'}">${t.bank}</span></td><td class="td-amt ${t.amount<0?'deb':'crd'}">${t.amount<0?'':'+'}${Math.abs(t.amount).toFixed(2)} €</td><td><select class="${cls}" data-id="${t.id}" style="">${opts}</select></td><td><button class="ign-btn${ign?' on':''}" data-id="${t.id}">${ign?'✓':'ign'}</button></td>`;
+    tr.innerHTML=`<td class="td-date">${t.date}</td><td class="td-desc" title="${t.desc}">${t.desc}${reimbTag}${creditHint||""}<div class="qbtns">${qBtns}<button class="qbtn more" data-id="${t.id}" data-cat="__more__">+ outras</button></div></td><td><span class="btag ${t.bank==='CGD'?'b-cgd':t.bank==='Santander'?'b-san':'b-cr'}">${t.bank}</span></td><td class="td-amt ${t.amount<0?'deb':'crd'}">${t.amount<0?'':'+'}${Math.abs(t.amount).toFixed(2)} €</td><td><select class="${cls}" data-id="${t.id}" style="">${opts}</select></td><td><button class="ign-btn${ign?' on':''}" data-id="${t.id}">${ign?'✓':'ign'}</button></td>`;
       tbody.appendChild(tr);
     }
     const unc=txns.filter(t=>!t.category).length, lrn=txns.filter(t=>t.status==='l').length;
@@ -1053,6 +1084,28 @@ function renderDashboard(){
         borderColor:['#22d3ee','#34d399','#a78bfa'][i], borderWidth:1.5, borderRadius:3,
       }))}
     },
+    { id:'chart-invest', type:'bar',
+      data:{ labels, datasets:[
+        { label:'PPR Save & Grow NO',
+          data: months.map(m=>{ const e=dataMap[`${m.month}_${m.year}`]||[]; return parseFloat(Math.abs(getCatTotal(e,'PPR Save & Grow NO')).toFixed(2)); }),
+          backgroundColor:'rgba(251,191,36,.2)', borderColor:'#fbbf24', borderWidth:1.5, borderRadius:3,
+        },
+        { label:'PPR Save & Grow AO',
+          data: months.map(m=>{ const e=dataMap[`${m.month}_${m.year}`]||[]; return parseFloat(Math.abs(getCatTotal(e,'PPR Save & Grow AO')).toFixed(2)); }),
+          backgroundColor:'rgba(167,139,250,.2)', borderColor:'#a78bfa', borderWidth:1.5, borderRadius:3,
+        },
+        { label:'SP500 XTB',
+          data: months.map(m=>{ const e=dataMap[`${m.month}_${m.year}`]||[]; return parseFloat(Math.abs(getCatTotal(e,'SP500 XTB')).toFixed(2)); }),
+          backgroundColor:'rgba(52,211,153,.2)', borderColor:'#34d399', borderWidth:1.5, borderRadius:3,
+        },
+        { label:'Total Investido', type:'line',
+          data: months.map(m=>{ const e=dataMap[`${m.month}_${m.year}`]||[];
+            return parseFloat((Math.abs(getCatTotal(e,'PPR Save & Grow NO'))+Math.abs(getCatTotal(e,'PPR Save & Grow AO'))+Math.abs(getCatTotal(e,'SP500 XTB'))).toFixed(2)); }),
+          backgroundColor:'rgba(34,211,238,.05)', borderColor:'#22d3ee', borderWidth:2, borderRadius:0,
+          fill:false, tension:.35, pointRadius:4, order:0,
+        },
+      ]}
+    },
   ];
 
   const baseOpts = {
@@ -1090,7 +1143,7 @@ window.addEventListener('load',()=>{
   // Setup dropzones
   setupDZ('dz-cgd','f-cgd','st-cgd','CGD');
   setupDZ('dz-san','f-san','st-san','Santander');
-  setupDZ('dz-extra','f-extra','st-extra','Extra');
+  setupDZ('dz-extra','f-extra','st-extra','CR');
   // Init
   initGoogleAuth(); updateLrnBadge(); updateHistoryBadge(); populateHistorySelect();
   const now=new Date();
@@ -1100,7 +1153,7 @@ window.addEventListener('load',()=>{
   // Listeners
   document.getElementById('btn-go').addEventListener('click',async()=>{
     txns=[];
-    ['CGD','Santander','Extra'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
+    ['CGD','Santander','CR'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
     txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
     let lrn=0;
     for(const t of txns){
@@ -1222,7 +1275,7 @@ window.addEventListener('load',()=>{
   // Main listeners
   document.getElementById('btn-go').addEventListener('click',async()=>{
     txns=[];
-    ['CGD','Santander','Extra'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
+    ['CGD','Santander','CR'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
     txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
     let lrn=0;
     for(const t of txns){
@@ -1259,7 +1312,7 @@ window.addEventListener('load',()=>{
   // Main listeners
   document.getElementById('btn-go').addEventListener('click',async()=>{
     txns=[];
-    ['CGD','Santander','Extra'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
+    ['CGD','Santander','CR'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
     txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
     let lrn=0;
     for(const t of txns){
@@ -1295,7 +1348,7 @@ window.addEventListener('load',()=>{
   // Main listeners
   document.getElementById('btn-go').addEventListener('click',async()=>{
     txns=[];
-    ['CGD','Santander','Extra'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
+    ['CGD','Santander','CR'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
     txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
     let lrn=0;
     for(const t of txns){
@@ -1330,7 +1383,7 @@ window.addEventListener('load',()=>{
   // Main listeners
   document.getElementById('btn-go').addEventListener('click',async()=>{
     txns=[];
-    ['CGD','Santander','Extra'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
+    ['CGD','Santander','CR'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
     txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
     let lrn=0;
     for(const t of txns){
