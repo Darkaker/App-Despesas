@@ -521,6 +521,15 @@ function setHealthSubmitted(id,val){ const d=getHealthSubmitted(); if(val) d[id]
 // const HEALTH_CATS_UNUSED = ['Consultas','Medicamentos/Óculos/Outros','Veterinário','Outros (Saúde)'];
 let _charts = {};
 
+function getLearned(){ try{ return JSON.parse(localStorage.getItem(LS)||'{}'); }catch{ return {}; } }
+function saveLearned(m){ try{ localStorage.setItem(LS,JSON.stringify(m)); }catch{} }
+function learnRule(desc,cat){
+  if(cat==='Ignorar / Transferência') return;
+  const m=getLearned(),k=desc.trim().toUpperCase().slice(0,45);
+  m[k]={ cat, n:(m[k]?.n||0)+1, ts:Date.now() };
+  saveLearned(m); updateLrnBadge();
+}
+
 function lookupLearned(desc){
   const m=getLearned(),k=desc.trim().toUpperCase().slice(0,45);
   if(m[k]) return m[k].cat;
@@ -1182,18 +1191,17 @@ function readManuals(){
   for(const[id,cat] of fields){ const v=g(id); if(v) window._manualExtras[cat]=(window._manualExtras[cat]||0)+v; }
 }
 
-window.addEventListener('load',()=>{
-  // Setup dropzones
+
+window.addEventListener('load', () => {
   setupDZ('dz-cgd','f-cgd','st-cgd','CGD');
   setupDZ('dz-san','f-san','st-san','Santander');
   setupDZ('dz-extra','f-extra','st-extra','CR');
-  // Init
   initGoogleAuth(); updateLrnBadge(); updateHistoryBadge(); populateHistorySelect();
   const now=new Date();
   document.getElementById('sel-month').value=now.getMonth()+1;
   document.getElementById('sel-year').value=now.getFullYear();
   updateTabLabel();
-  // Listeners
+
   document.getElementById('btn-go').addEventListener('click',async()=>{
     txns=[];
     ['CGD','Santander','CR'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
@@ -1226,8 +1234,9 @@ window.addEventListener('load',()=>{
     showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
     if(accessToken) checkSheetAccess();
   });
+
   document.getElementById('tbody').addEventListener('click',e=>{
-    const qbtn = e.target.closest('.qbtn');
+const qbtn = e.target.closest('.qbtn');
     if(qbtn && !qbtn.classList.contains('ign-btn')){
       const id = qbtn.dataset.id;
       const cat = qbtn.dataset.cat;
@@ -1245,15 +1254,16 @@ window.addEventListener('load',()=>{
       e.stopPropagation();
       return;
     }
-  });
-
-  document.getElementById('tbody').addEventListener('click',e=>{
-    if(!e.target.matches('.health-chk')) return;
-    const id = e.target.dataset.id;
-    const d = getHealthSubmitted();
-    if(e.target.checked) d[id]=true; else delete d[id];
-    saveHealthSubmitted(d);
-    renderTxns();
+    // health checkbox
+    if(e.target.matches('.health-submit-chk')){
+      setHealthSubmitted(e.target.dataset.id, e.target.checked);
+      renderTxns();
+      return;
+    }
+    // ign button
+if(!e.target.matches('button.ign-btn')) return;
+    const t=txns.find(x=>x.id===e.target.dataset.id);
+    if(t){ t.category=t.category==='Ignorar / Transferência'?'':'Ignorar / Transferência'; t.status=t.category?'c':'u'; renderTxns(); renderSummary(); }
   });
 
   document.getElementById('tbody').addEventListener('change',e=>{
@@ -1267,13 +1277,11 @@ window.addEventListener('load',()=>{
       renderTxns(); renderSummary();
     }
   });
-  document.getElementById('tbody').addEventListener('click',e=>{
-    if(!e.target.matches('button.ign-btn')) return;
-    const t=txns.find(x=>x.id===e.target.dataset.id);
-    if(t){ t.category=t.category==='Ignorar / Transferência'?'':'Ignorar / Transferência'; t.status=t.category?'c':'u'; renderTxns(); renderSummary(); }
-  });
+
   document.getElementById('btn-conf-all').addEventListener('click',()=>{ txns.filter(t=>t.status==='a'&&t.category).forEach(t=>t.status='c'); renderTxns(); renderSummary(); showToast('Sugestões IA confirmadas'); });
+
   document.getElementById('btn-rst-ign').addEventListener('click',()=>{ txns.filter(t=>t.category==='Ignorar / Transferência').forEach(t=>{t.category='';t.status='u';}); renderTxns(); renderSummary(); });
+
   document.getElementById('btn-write').addEventListener('click',async()=>{
   if(!accessToken){ tokenClient.requestAccessToken({prompt:''}); showToast('Liga primeiro ao Google',true); return; }
   // Sync manual fields before writing
@@ -1307,6 +1315,7 @@ window.addEventListener('load',()=>{
   document.getElementById('write-load').style.display='none';
   document.getElementById('btn-write').disabled=false;
 });
+
   document.getElementById('btn-csv').addEventListener('click',()=>{
   const m=parseInt(document.getElementById('sel-month').value),y=document.getElementById('sel-year').value;
   const totals={};
@@ -1316,7 +1325,9 @@ window.addEventListener('load',()=>{
   dl('\ufeff'+csv,`totais_${y}_${String(m).padStart(2,'0')}.csv`,'text/csv;charset=utf-8');
   showToast('CSV exportado');
 });
+
   ['srch','flt-cat','flt-st','flt-bank'].forEach(id=>{ document.getElementById(id).addEventListener('input',renderTxns); });
+
   document.querySelector('thead').addEventListener('click',e=>{
     const th = e.target.closest('th.sortable');
     if(!th) return;
@@ -1326,153 +1337,16 @@ window.addEventListener('load',()=>{
     th.querySelector('.sort-ico').textContent = _sortDir===1 ? '↑' : '↓';
     renderTxns();
   });
+
   document.getElementById('sel-year').addEventListener('change',()=>{ updateTabLabel(); if(accessToken) checkSheetAccess(); });
   document.getElementById('sel-month').addEventListener('change',updateTabLabel);
+  document.getElementById('tab-app').addEventListener('click',()=>switchTab('app'));
+  document.getElementById('tab-dash').addEventListener('click',()=>switchTab('dash'));
   document.getElementById('hist-sel').addEventListener('change',renderHistory);
+  document.getElementById('hist-year').addEventListener('change',renderHistory);
   document.getElementById('hist-srch').addEventListener('input',renderHistory);
   document.getElementById('hist-cat-flt').addEventListener('change',renderHistory);
-
-  // Main listeners
-  document.getElementById('btn-go').addEventListener('click',async()=>{
-    txns=[];
-    ['CGD','Santander','CR'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
-    txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
-    let lrn=0;
-    for(const t of txns){
-      const{cat,src}=localCat(t.desc);
-      if(cat){ t.category=cat; t.status=src==='l'?'l':'a'; if(src==='l') lrn++; }
-    }
-    setStep(2);
-    document.getElementById('card-upload').style.display='none';
-    document.getElementById('card-cat').style.display='';
-    document.getElementById('card-sum').style.display='';
-    updateTabLabel();
-    renderTxns(); renderSummary();
-    const unc=txns.filter(t=>!t.category);
-    if(unc.length>0){
-      showAILoad(true);
-      const B=25;
-      for(let i=0;i<unc.length;i+=B){
-        const batch=unc.slice(i,i+B);
-        document.getElementById('prog').style.width=Math.round(i/unc.length*100)+'%';
-        document.getElementById('ai-msg').textContent=`IA: ${i} / ${unc.length}`;
-        try{ const res=await aiCat(batch); for(const r of res){ const t=txns.find(x=>x.id===r.id); if(t&&ALL_CATS.includes(r.category)){ t.category=r.category; t.status='a'; } } }catch(e){ console.warn(e); }
-      }
-      document.getElementById('prog').style.width='100%';
-      showAILoad(false);
-      renderTxns(); renderSummary();
-    }
-    showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
-    if(accessToken) checkSheetAccess();
-  });
-  document.getElementById('hist-sel').addEventListener('change',renderHistory);
-  document.getElementById('hist-srch').addEventListener('input',renderHistory);
-  document.getElementById('hist-cat-flt').addEventListener('change',renderHistory);
-
-  // Main listeners
-  document.getElementById('btn-go').addEventListener('click',async()=>{
-    txns=[];
-    ['CGD','Santander','CR'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
-    txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
-    let lrn=0;
-    for(const t of txns){
-      const{cat,src}=localCat(t.desc);
-      if(cat){ t.category=cat; t.status=src==='l'?'l':'a'; if(src==='l') lrn++; }
-    }
-    setStep(2);
-    document.getElementById('card-upload').style.display='none';
-    document.getElementById('card-cat').style.display='';
-    document.getElementById('card-sum').style.display='';
-    updateTabLabel();
-    renderTxns(); renderSummary();
-    const unc=txns.filter(t=>!t.category);
-    if(unc.length>0){
-      showAILoad(true);
-      const B=25;
-      for(let i=0;i<unc.length;i+=B){
-        const batch=unc.slice(i,i+B);
-        document.getElementById('prog').style.width=Math.round(i/unc.length*100)+'%';
-        document.getElementById('ai-msg').textContent=`IA: ${i} / ${unc.length}`;
-        try{ const res=await aiCat(batch); for(const r of res){ const t=txns.find(x=>x.id===r.id); if(t&&ALL_CATS.includes(r.category)){ t.category=r.category; t.status='a'; } } }catch(e){ console.warn(e); }
-      }
-      document.getElementById('prog').style.width='100%';
-      showAILoad(false);
-      renderTxns(); renderSummary();
-    }
-    showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
-    if(accessToken) checkSheetAccess();
-  });
-  document.getElementById('hist-srch').addEventListener('input',renderHistory);
-  document.getElementById('hist-cat-flt').addEventListener('change',renderHistory);
-
-  // Main listeners
-  document.getElementById('btn-go').addEventListener('click',async()=>{
-    txns=[];
-    ['CGD','Santander','CR'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
-    txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
-    let lrn=0;
-    for(const t of txns){
-      const{cat,src}=localCat(t.desc);
-      if(cat){ t.category=cat; t.status=src==='l'?'l':'a'; if(src==='l') lrn++; }
-    }
-    setStep(2);
-    document.getElementById('card-upload').style.display='none';
-    document.getElementById('card-cat').style.display='';
-    document.getElementById('card-sum').style.display='';
-    updateTabLabel();
-    renderTxns(); renderSummary();
-    const unc=txns.filter(t=>!t.category);
-    if(unc.length>0){
-      showAILoad(true);
-      const B=25;
-      for(let i=0;i<unc.length;i+=B){
-        const batch=unc.slice(i,i+B);
-        document.getElementById('prog').style.width=Math.round(i/unc.length*100)+'%';
-        document.getElementById('ai-msg').textContent=`IA: ${i} / ${unc.length}`;
-        try{ const res=await aiCat(batch); for(const r of res){ const t=txns.find(x=>x.id===r.id); if(t&&ALL_CATS.includes(r.category)){ t.category=r.category; t.status='a'; } } }catch(e){ console.warn(e); }
-      }
-      document.getElementById('prog').style.width='100%';
-      showAILoad(false);
-      renderTxns(); renderSummary();
-    }
-    showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
-    if(accessToken) checkSheetAccess();
-  });
-  document.getElementById('hist-cat-flt').addEventListener('change',renderHistory);
-
-  // Main listeners
-  document.getElementById('btn-go').addEventListener('click',async()=>{
-    txns=[];
-    ['CGD','Santander','CR'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
-    txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
-    let lrn=0;
-    for(const t of txns){
-      const{cat,src}=localCat(t.desc);
-      if(cat){ t.category=cat; t.status=src==='l'?'l':'a'; if(src==='l') lrn++; }
-    }
-    setStep(2);
-    document.getElementById('card-upload').style.display='none';
-    document.getElementById('card-cat').style.display='';
-    document.getElementById('card-sum').style.display='';
-    updateTabLabel();
-    renderTxns(); renderSummary();
-    const unc=txns.filter(t=>!t.category);
-    if(unc.length>0){
-      showAILoad(true);
-      const B=25;
-      for(let i=0;i<unc.length;i+=B){
-        const batch=unc.slice(i,i+B);
-        document.getElementById('prog').style.width=Math.round(i/unc.length*100)+'%';
-        document.getElementById('ai-msg').textContent=`IA: ${i} / ${unc.length}`;
-        try{ const res=await aiCat(batch); for(const r of res){ const t=txns.find(x=>x.id===r.id); if(t&&ALL_CATS.includes(r.category)){ t.category=r.category; t.status='a'; } } }catch(e){ console.warn(e); }
-      }
-      document.getElementById('prog').style.width='100%';
-      showAILoad(false);
-      renderTxns(); renderSummary();
-    }
-    showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
-    if(accessToken) checkSheetAccess();
-  });
-});</script>
+});
+</script>
 </body>
 </html>
