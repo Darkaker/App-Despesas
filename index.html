@@ -77,12 +77,18 @@ tr.ignored td{opacity:.35}
 .health-chk{display:inline-flex;align-items:center;gap:4px;font-size:.58rem;font-family:'Geist Mono',monospace;color:var(--m2);margin-left:6px;cursor:pointer;user-select:none}
 .health-chk input{cursor:pointer;accent-color:var(--grn);width:11px;height:11px}
 .health-chk.done{color:var(--grn)}
+.btn-health-flt{background:rgba(251,146,60,.1);color:#fb923c;border:1px solid rgba(251,146,60,.3);border-radius:4px;padding:4px 10px;font-size:.7rem;font-family:'Geist Mono',monospace;cursor:pointer;transition:background .15s}
+.btn-health-flt:hover{background:rgba(251,146,60,.2)}
+.btn-health-flt.active{background:rgba(251,146,60,.25);border-color:#fb923c;font-weight:600}
 th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
 th.sortable:hover{color:var(--acc)}
 .sort-ico{opacity:.5;font-size:.7em;margin-left:2px}
 .health-banner{background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.25);border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:.7rem;font-family:'Geist Mono',monospace;color:#fb923c;display:none;align-items:center;gap:8px}
 .health-tag{display:inline-flex;align-items:center;gap:3px;font-size:.58rem;font-family:'Geist Mono',monospace;padding:2px 6px;border-radius:3px;background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.3);margin-left:4px;cursor:default}
 .health-submitted{background:rgba(52,211,153,.15);color:#34d399;border-color:rgba(52,211,153,.3)}
+.btn-health-flt{background:rgba(251,146,60,.1);color:#fb923c;border:1px solid rgba(251,146,60,.3);border-radius:4px;padding:4px 10px;font-size:.7rem;font-family:'Geist Mono',monospace;cursor:pointer;transition:background .15s}
+.btn-health-flt:hover{background:rgba(251,146,60,.2)}
+.btn-health-flt.active{background:rgba(251,146,60,.25);border-color:#fb923c;font-weight:600}
 th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
 th.sortable:hover{color:var(--acc)}
 .sort-ico{opacity:.5;font-size:.7em;margin-left:2px}
@@ -254,6 +260,7 @@ th.sortable:hover{color:var(--acc)}
       <option value="Santander">Santander</option>
       <option value="CR">Cartão Refeição</option>
     </select>
+    <button id="btn-health-flt" class="btn-health-flt" title="Mostrar só despesas de saúde">🏥 Saúde</button>
   </div>
   <div id="ai-load" class="loading" style="display:none">
     <div class="spin"></div><span id="ai-msg">A categorizar...</span>
@@ -261,7 +268,7 @@ th.sortable:hover{color:var(--acc)}
   </div>
   <div class="tbl-wrap">
     <div id="health-banner" class="health-banner"></div>
-  <table><thead><tr>
+  <table><thead id="txn-thead"><tr>
       <th class="sortable" data-col="date">Data <span class="sort-ico">↕</span></th>
       <th class="sortable" data-col="desc">Descrição <span class="sort-ico">↕</span></th>
       <th class="sortable" data-col="bank">Banco <span class="sort-ico">↕</span></th>
@@ -514,7 +521,8 @@ const RULES = [
 const LS='despesas_v2';
 
 let txns=[], bankData={CGD:null,Santander:null,CR:null};
-let _sortCol='date', _sortDir=1; // 1=asc -1=desc
+let _sortCol='date', _sortDir=1;
+let _healthFlt=false; // 1=asc -1=desc
 const SAUDE_CATS = ['Consultas','Medicamentos/Óculos/Outros','Veterinário','Outros (Saúde)'];
 let tokenClient=null, accessToken=null, tokenExpiry=0;
 const HS = 'despesas_history_v1';
@@ -943,6 +951,7 @@ function renderSummary(){
     else if(fSt==='c') list=list.filter(t=>t.status==='c');
     else if(fSt==='i') list=list.filter(t=>t.category==='Ignorar / Transferência');
     if(fBank) list=list.filter(t=>t.bank===fBank);
+    if(_healthFlt) list=list.filter(t=>t.category&&SAUDE_CATS.includes(t.category));
     // Sort
     list.sort((a,b)=>{
       let va,vb;
@@ -955,6 +964,11 @@ function renderSummary(){
     });
     const tbody=document.getElementById('tbody');
     tbody.innerHTML='';
+    // Refresh sort icons
+    document.querySelectorAll('#txn-thead .sort-ico').forEach(el=>{
+      const col=el.closest('th').dataset.col;
+      el.textContent = col===_sortCol ? (_sortDir===1?'↑':'↓') : '↕';
+    });
     for(const t of list){
       const ign=t.category==='Ignorar / Transferência';
       const tr=document.createElement('tr'); if(ign) tr.classList.add('ignored');
@@ -1332,12 +1346,17 @@ if(!e.target.matches('button.ign-btn')) return;
 
   ['srch','flt-cat','flt-st','flt-bank'].forEach(id=>{ document.getElementById(id).addEventListener('input',renderTxns); });
 
-  document.querySelector('thead').addEventListener('click',e=>{
+  document.getElementById('btn-health-flt').addEventListener('click',()=>{
+    _healthFlt=!_healthFlt;
+    document.getElementById('btn-health-flt').classList.toggle('active',_healthFlt);
+    renderTxns();
+  });
+  document.getElementById('txn-thead').addEventListener('click',e=>{
     const th = e.target.closest('th.sortable');
     if(!th) return;
     const col = th.dataset.col;
     if(_sortCol===col) _sortDir*=-1; else { _sortCol=col; _sortDir=1; }
-    document.querySelectorAll('th.sortable .sort-ico').forEach(el=>el.textContent='↕');
+    document.querySelectorAll('#txn-thead .sort-ico').forEach(el=>el.textContent='↕');
     th.querySelector('.sort-ico').textContent = _sortDir===1 ? '↑' : '↓';
     renderTxns();
   });
@@ -1347,7 +1366,6 @@ if(!e.target.matches('button.ign-btn')) return;
   document.getElementById('tab-app').addEventListener('click',()=>switchTab('app'));
   document.getElementById('tab-dash').addEventListener('click',()=>switchTab('dash'));
   document.getElementById('hist-sel').addEventListener('change',renderHistory);
-  document.getElementById('hist-year').addEventListener('change',renderHistory);
   document.getElementById('hist-srch').addEventListener('input',renderHistory);
   document.getElementById('hist-cat-flt').addEventListener('change',renderHistory);
 });
