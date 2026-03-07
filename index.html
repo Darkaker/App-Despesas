@@ -262,8 +262,12 @@ th.sortable:hover{color:var(--acc)}
   <div class="tbl-wrap">
     <div id="health-banner" class="health-banner"></div>
   <table><thead><tr>
-      <th>Data</th><th>Descrição</th><th>Banco</th>
-      <th style="text-align:right">Valor</th><th>Categoria</th><th></th>
+      <th class="sortable" data-col="date">Data <span class="sort-ico">↕</span></th>
+      <th class="sortable" data-col="desc">Descrição <span class="sort-ico">↕</span></th>
+      <th class="sortable" data-col="bank">Banco <span class="sort-ico">↕</span></th>
+      <th class="sortable" style="text-align:right" data-col="amount">Valor <span class="sort-ico">↕</span></th>
+      <th class="sortable" data-col="category">Categoria <span class="sort-ico">↕</span></th>
+      <th></th>
     </tr></thead>
     <tbody id="tbody"></tbody></table>
   </div>
