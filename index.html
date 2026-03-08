@@ -421,6 +421,7 @@ div><!-- /view-app -->
     <button class="btn sec" style="font-size:.7rem;padding:5px 11px" onclick="clearHistory()">✕ Limpar</button>
   </div>
   <div id="hist-month-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+  <div id="hist-debug" style="font-size:.65rem;font-family:'Geist Mono',monospace;color:var(--m2);margin-bottom:6px"></div>
   <div id="hist-content" style="display:none">
     <div class="frow" style="margin-bottom:8px">
       <input class="search" id="hist-srch" placeholder="pesquisar..." style="width:200px">
@@ -433,13 +434,7 @@ div><!-- /view-app -->
       </tr></thead>
       <tbody id="hist-tbody"></tbody></table>
     </div>
-    <div id="hist-stats" style="margin-top:10px;font-size:.7rem;font-family:'Geist Mono',monospace;color:var(--m2)"></div>
-  </div>
-</div>
-</div>
-</div><!-- /wrap -->
-<div class="toast" id="toast"></div>
-
+    <div id="hist-stats" style="margin-top:10px;font-size:.7rem;font-family:'Geist Mono',
 <script>
 // ── CONFIG ──────────────────────────────────────────────────
 const CLIENT_ID  = '961246541572-t2l107q08u74a92ol7jkjvc71cg2djeh.apps.googleusercontent.com';
@@ -1021,6 +1016,8 @@ function populateHistorySelect(){
   wrap.innerHTML='';
   // Remove keys no longer in history
   for(const k of [..._histSelected]){ if(!h.find(e=>e.month+'_'+e.year===k)) _histSelected.delete(k); }
+  const dbg=document.getElementById('hist-debug');
+  if(dbg) dbg.textContent=`localStorage: ${h.length} meses guardados`;
   if(h.length===0){ wrap.textContent="Sem histórico guardado."; return; }
   // Auto-select most recent if nothing selected
   if(_histSelected.size===0 && h.length>0){
@@ -1120,7 +1117,7 @@ function getCatTotal(entries, cat){
   return entries.filter(e=>e.category===cat).reduce((s,e)=>s+e.amount,0);
 }
 
-function renderDashboard(){
+function renderDashboard(){ try {
   const h = getHistory();
   if(!h.length){
     document.getElementById('dash-nodata').style.display='';
@@ -1231,6 +1228,8 @@ function renderDashboard(){
     if(!ctx) continue;
     _charts[def.id] = new Chart(ctx, { type:def.type, data:def.data, options:JSON.parse(JSON.stringify(baseOpts)) });
   }
+
+  } catch(e){ console.error("renderDashboard error:",e); document.getElementById("dash-nodata").style.display=""; document.getElementById("dash-nodata").textContent="Erro dashboard: "+e.message; }
 }
 
 function readManuals(){
@@ -1276,6 +1275,7 @@ window.addEventListener('load', () => {
 
   // ── btn-go ────────────────────────────────────────────────
   document.getElementById('btn-go').addEventListener('click', async()=>{
+  try {
     txns=[];
     ['CGD','Santander','CR'].forEach(b=>{ if(bankData[b]) txns.push(...bankData[b]); });
     txns.sort((a,b)=>b.date.split('-').reverse().join('').localeCompare(a.date.split('-').reverse().join('')));
@@ -1298,19 +1298,23 @@ window.addEventListener('load', () => {
         const batch=unc.slice(i,i+B);
         document.getElementById('prog').style.width=Math.round(i/unc.length*100)+'%';
         document.getElementById('ai-msg').textContent=`IA: ${i} / ${unc.length}`;
-        try{ const res=await aiCat(batch); for(const r of res){ const t=txns.find(x=>x.id===r.id); if(t&&ALL_CATS.includes(r.category)){ t.category=r.category; t.status='a'; } } }catch(e){ console.warn(e); }
+        try{ const res=await aiCat(batch); for(const r of res){ const t=txns.find(x=>x.id===r.id); if(t&&ALL_CATS.includes(r.category)){ t.category=r.category; t.status='a'; } } }catch(e){ console.warn('aiCat error:',e); }
       }
       document.getElementById('prog').style.width='100%';
       showAILoad(false);
       renderTxns(); renderSummary();
     }
     // Always save history after categorization (local + AI)
-    { const m=parseInt(document.getElementById('sel-month').value), y=parseInt(document.getElementById('sel-year').value);
-      const finalEntries=txns.filter(t=>t.category&&t.category!=='Ignorar / Transferência').map(t=>({date:t.date,desc:t.desc,bank:t.bank,amount:t.amount,category:t.category}));
-      if(finalEntries.length){ addToHistory(m,y,finalEntries); updateHistoryBadge(); populateHistorySelect(); }
-    }
-    showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
+    const mSel=parseInt(document.getElementById('sel-month').value), ySel=parseInt(document.getElementById('sel-year').value);
+    const finalEntries=txns.filter(t=>t.category&&t.category!=='Ignorar / Transferência').map(t=>({date:t.date,desc:t.desc,bank:t.bank,amount:t.amount,category:t.category}));
+    if(finalEntries.length){ addToHistory(mSel,ySel,finalEntries); updateHistoryBadge(); populateHistorySelect(); }
+    showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} aprendizagem) · ${finalEntries.length} guardadas`);
     if(accessToken) checkSheetAccess();
+  } catch(goErr) {
+    console.error('btn-go error:', goErr);
+    showToast('Erro ao processar: ' + goErr.message, true);
+    showAILoad(false);
+  }
   });
 
   // ── tbody ─────────────────────────────────────────────────
