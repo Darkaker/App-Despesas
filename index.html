@@ -1020,8 +1020,12 @@ function populateHistorySelect(){
   if(!wrap) return;
   wrap.innerHTML='';
   // Remove keys no longer in history
-  for(const k of _histSelected){ if(!h.find(e=>e.month+'_'+e.year===k)) _histSelected.delete(k); }
+  for(const k of [..._histSelected]){ if(!h.find(e=>e.month+'_'+e.year===k)) _histSelected.delete(k); }
   if(h.length===0){ wrap.textContent="Sem histórico guardado."; return; }
+  // Auto-select most recent if nothing selected
+  if(_histSelected.size===0 && h.length>0){
+    _histSelected.add(`${h[0].month}_${h[0].year}`);
+  }
   for(const e of h){
     const key=`${e.month}_${e.year}`;
     const chip=document.createElement('button');
@@ -1040,6 +1044,11 @@ function populateHistorySelect(){
     });
     wrap.appendChild(chip);
   }
+  // Always refresh the table after rebuilding chips
+  renderHistory();
+  // Refresh dashboard if it's visible
+  const vd=document.getElementById('view-dash');
+  if(vd && vd.style.display!=='none') renderDashboard();
 }
 
 function renderHistory(){
@@ -1093,14 +1102,6 @@ function switchTab(tab){
   if(tab==='dash') renderDashboard();
   if(tab==='hist'){
     populateHistorySelect();
-    // Auto-select most recent month if nothing selected yet
-    if(_histSelected.size===0){
-      const h=getHistory();
-      if(h.length>0){ _histSelected.add(`${h[0].month}_${h[0].year}`); }
-      // Re-render chips to show selection
-      populateHistorySelect();
-    }
-    renderHistory();
   }
 }
 
@@ -1289,11 +1290,6 @@ window.addEventListener('load', () => {
     document.getElementById('card-sum').style.display='';
     updateTabLabel();
     renderTxns(); renderSummary();
-    // Save to history immediately after local categorization (before AI & write)
-    { const m=parseInt(document.getElementById('sel-month').value), y=parseInt(document.getElementById('sel-year').value);
-      const preEntries=txns.filter(t=>t.category&&t.category!=='Ignorar / Transferência').map(t=>({date:t.date,desc:t.desc,bank:t.bank,amount:t.amount,category:t.category}));
-      if(preEntries.length) addToHistory(m,y,preEntries);
-      updateHistoryBadge(); populateHistorySelect(); }
     const unc=txns.filter(t=>!t.category);
     if(unc.length>0){
       showAILoad(true);
@@ -1307,11 +1303,11 @@ window.addEventListener('load', () => {
       document.getElementById('prog').style.width='100%';
       showAILoad(false);
       renderTxns(); renderSummary();
-      // Update history with AI-enriched categories
-      { const m=parseInt(document.getElementById('sel-month').value), y=parseInt(document.getElementById('sel-year').value);
-        const aiEntries=txns.filter(t=>t.category&&t.category!=='Ignorar / Transferência').map(t=>({date:t.date,desc:t.desc,bank:t.bank,amount:t.amount,category:t.category}));
-        if(aiEntries.length) addToHistory(m,y,aiEntries);
-        updateHistoryBadge(); populateHistorySelect(); }
+    }
+    // Always save history after categorization (local + AI)
+    { const m=parseInt(document.getElementById('sel-month').value), y=parseInt(document.getElementById('sel-year').value);
+      const finalEntries=txns.filter(t=>t.category&&t.category!=='Ignorar / Transferência').map(t=>({date:t.date,desc:t.desc,bank:t.bank,amount:t.amount,category:t.category}));
+      if(finalEntries.length){ addToHistory(m,y,finalEntries); updateHistoryBadge(); populateHistorySelect(); }
     }
     showToast(`✓ ${txns.filter(t=>t.category).length}/${txns.length} categorizadas (${lrn} por aprendizagem)`);
     if(accessToken) checkSheetAccess();
