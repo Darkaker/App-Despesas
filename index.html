@@ -35,7 +35,7 @@ body{background:var(--bg);color:var(--txt);font-family:'DM Sans',sans-serif;font
 .auth-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--border2)}
 .auth-pill.on .dot{background:var(--grn)}
 .auth-pill.on{border-color:#bbf7d0;background:var(--grn-bg)}
-#sheet-bar{font-size:.7rem;color:var(--txt3);font-family:'DM Mono',monospace;display:none}
+#sheet-bar{font-size:.7rem;font-family:'DM Mono',monospace;display:none}
 #sheet-bar.ok{color:var(--grn)} #sheet-bar.err{color:var(--red)}
 #lrn-wrap{font-size:.72rem;color:var(--txt3);display:flex;align-items:center;gap:6px}
 
@@ -782,8 +782,8 @@ async function ensureToken(){
 }
 function updateAuthUI(ok){
   const el=document.getElementById('auth-btn');
-  el.className='auth-pill'+(ok?' logged':'');
-  document.getElementById('auth-label').textContent=ok?'Google ligado':'Ligar ao Google';
+  el.className='auth-pill'+(ok?' on':'');
+  document.getElementById('auth-lbl').textContent=ok?'Google ligado':'Ligar Google';
 }
 async function checkSheetAccess(){
   try{
@@ -798,8 +798,10 @@ async function checkSheetAccess(){
   } catch(e){ setSheetBar(false,'Erro: '+e.message); }
 }
 function setSheetBar(ok,msg){
-  document.getElementById('sdot').className='sdot'+(ok?' ok':' err');
-  const el=document.getElementById('smsg'); el.textContent=msg; el.style.color=ok?'var(--grn)':'var(--red)';
+  const el=document.getElementById('sheet-bar');
+  el.style.display='';
+  el.className=ok?'ok':'err';
+  el.textContent=msg;
 }
 async function writeToSheet(totalsObj){
   const tok=await ensureToken();
