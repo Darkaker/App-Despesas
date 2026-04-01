@@ -837,8 +837,11 @@ async function checkSheetAccess(){
   } catch(e){ setSheetBar(false,'Erro: '+e.message); }
 }
 function setSheetBar(ok,msg){
-  document.getElementById('sdot').className='sdot'+(ok?' ok':' err');
-  const el=document.getElementById('smsg'); el.textContent=msg; el.style.color=ok?'var(--grn)':'var(--red)';
+  const el=document.getElementById('sheet-bar');
+  if(!el) return;
+  el.className=ok?'ok':'err';
+  el.textContent=msg;
+  el.style.display='';
 }
 async function writeToSheet(totalsObj){
   const tok=await ensureToken();
