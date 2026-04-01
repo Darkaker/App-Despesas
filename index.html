@@ -35,7 +35,7 @@ body{background:var(--bg);color:var(--txt);font-family:'DM Sans',sans-serif;font
 .auth-pill .dot{width:7px;height:7px;border-radius:50%;background:var(--border2)}
 .auth-pill.on .dot{background:var(--grn)}
 .auth-pill.on{border-color:#bbf7d0;background:var(--grn-bg)}
-#sheet-bar{font-size:.7rem;font-family:'DM Mono',monospace;display:none}
+#sheet-bar{font-size:.7rem;color:var(--txt3);font-family:'DM Mono',monospace;display:none}
 #sheet-bar.ok{color:var(--grn)} #sheet-bar.err{color:var(--red)}
 #lrn-wrap{font-size:.72rem;color:var(--txt3);display:flex;align-items:center;gap:6px}
 
@@ -217,7 +217,6 @@ tr.ignored td{opacity:.4}
 <div class="hdr">
   <div class="hdr-brand">
     <h1>Gestão de Contas</h1>
-    <span id="tab-label"></span>
   </div>
   <div class="hdr-right">
     <div id="lrn-wrap"><span>aprendizagem</span><span id="lrn-badge" class="badge blue">0</span></div>
@@ -454,6 +453,13 @@ tr.ignored td{opacity:.4}
 <!-- ▸ INVESTIMENTOS -->
 <div id="view-inv" style="display:none">
 
+  <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:.75rem;color:var(--txt3)">
+    <span style="white-space:nowrap;font-family:'DM Mono',monospace">Chave API Anthropic:</span>
+    <input id="inv-api-key" type="password" placeholder="sk-ant-…  (necessária para atualizar preços)" style="flex:1;padding:4px 9px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;font-family:'DM Mono',monospace;background:var(--surface);color:var(--txt)">
+    <button class="btn" style="font-size:.72rem;padding:4px 10px;white-space:nowrap" onclick="saveInvApiKey()">Guardar</button>
+    <span id="inv-key-status" style="font-size:.68rem;font-family:'DM Mono',monospace"></span>
+  </div>
+
   <div id="inv-kpi-row" class="inv-kpi-row"></div>
 
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
@@ -572,6 +578,10 @@ const GROUPS = {
   'Investimentos':['PPR Save & Grow NO','PPR Save & Grow AO','SP500 XTB'],
   'Receitas':['Salários Ana','Salário Nuno','Subsídio Alimentação Ana','Subsídio Alimentação Nuno','Subsídio Férias/Natal Ana','Subsídio Férias/Natal Nuno','Juros XTB','Juros Trade Republic','Juros Revolut','Rendas','Outros Rendimentos','Reembolsos Seguros/ADSE','IRS'],
 };
+
+// ══ DASHBOARD CHART CONSTANTS ════════════════════════════════════
+const CASA_CATS   = ['Prestação Cid. Coimbra','Prestação Cid. Lagos','Prestação Multifunções','Condomínio Cid. Coimbra','Condomínio Cid. Lagos','Eletricidade','Água','Gás','Internet/TV/Tlm','Supermercado','Outros/Subscrições'];
+const CASA_COLORS = ['#f87171','#fb923c','#fbbf24','#4ade80','#34d399','#22d3ee','#60a5fa','#a78bfa','#f472b6','#94a3b8','#e879f9'];
 
 // ══ BUILT-IN RULES ══════════════════════════════════════════════
 const RULES = [
@@ -783,7 +793,7 @@ async function ensureToken(){
 function updateAuthUI(ok){
   const el=document.getElementById('auth-btn');
   el.className='auth-pill'+(ok?' on':'');
-  document.getElementById('auth-lbl').textContent=ok?'Google ligado':'Ligar Google';
+  document.getElementById('auth-lbl').textContent=ok?'Google ligado':'Ligar ao Google';
 }
 async function checkSheetAccess(){
   try{
@@ -798,10 +808,8 @@ async function checkSheetAccess(){
   } catch(e){ setSheetBar(false,'Erro: '+e.message); }
 }
 function setSheetBar(ok,msg){
-  const el=document.getElementById('sheet-bar');
-  el.style.display='';
-  el.className=ok?'ok':'err';
-  el.textContent=msg;
+  document.getElementById('sdot').className='sdot'+(ok?' ok':' err');
+  const el=document.getElementById('smsg'); el.textContent=msg; el.style.color=ok?'var(--grn)':'var(--red)';
 }
 async function writeToSheet(totalsObj){
   const tok=await ensureToken();
@@ -1096,12 +1104,12 @@ function renderSummary(){
       const v = totals[cat];
       const net = v ? v.net : 0;
       const manV = man[cat] || 0;
-      const total = net + (isRec ? manV : 0);
+      const total = net;  // manuals already included via calcTotals → window._manualExtras
       const reimbTag = v && !v.isRec && v.credits > 0
         ? `<span style="font-size:.65rem;color:var(--yel);margin-left:4px">↩ ${v.credits.toFixed(2)}€</span>` : '';
       const manTag = manV > 0
         ? `<span style="font-size:.65rem;color:var(--acc);margin-left:4px">+${manV.toFixed(2)}€ manual</span>` : '';
-      const txnInfo = v ? `<span style="color:var(--txt3)">${v.txns.length} txn</span>` : '';
+      const txnInfo = v ? (v.txns.length > 0 ? `<span style="color:var(--txt3)">${v.txns.length} txn</span>` : `<span style="color:var(--txt3);font-style:italic">só manual</span>`) : '';
       return `<tr>
         <td style="padding:5px 8px 5px 0;color:var(--txt);font-size:.82rem">${cat}${reimbTag}${manTag}</td>
         <td style="padding:5px 0;text-align:right;font-family:'DM Mono',monospace;font-size:.82rem;font-weight:500;white-space:nowrap;color:${isRec?'var(--grn)':'var(--txt)'}">${total.toFixed(2)} €</td>
@@ -1194,11 +1202,7 @@ function renderTxns(){
 // ══ STEPS & UI ═══════════════════════════════════════════════════
 function setStep(n){ for(let i=1;i<=3;i++){ const s=document.getElementById('s'+i); s.className='step'+(i<n?' done':i===n?' active':''); } }
 function showAILoad(show){ document.getElementById('ai-load').style.display=show?'flex':'none'; if(!show) document.getElementById('prog').style.width='0'; }
-function updateTabLabel() {
-  const y = document.getElementById('sel-year').value;
-  const m = parseInt(document.getElementById('sel-month').value);
-  document.getElementById('tab-label').textContent = `Despesas vs Receitas ${y} · col ${MONTH_COL[m]}`;
-}
+
 function showToast(msg,err=false){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(err?' err':''); clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast',4000); }
 function dl(data,name,type){ const b=new Blob([data],{type}),u=URL.createObjectURL(b),a=document.createElement('a'); a.href=u; a.download=name; a.click(); }
 
@@ -1430,6 +1434,17 @@ function renderDashboard(){ try {
 
 // ══ INVESTMENTS ══════════════════════════════════════════════
 const INV_KEY = 'gc_invest_v1';
+const INV_API_KEY = 'gc_inv_apikey';
+
+function saveInvApiKey() {
+  const val = document.getElementById('inv-api-key').value.trim();
+  if (!val) { showToast('Chave vazia — não guardada', true); return; }
+  localStorage.setItem(INV_API_KEY, val);
+  document.getElementById('inv-key-status').textContent = '✓ guardada';
+  document.getElementById('inv-key-status').style.color = 'var(--grn)';
+  showToast('Chave API guardada');
+}
+function getInvApiKey() { return localStorage.getItem(INV_API_KEY) || ''; }
 
 function getInvPortfolio() {
   try {
@@ -1572,6 +1587,13 @@ function renderInv() {
   } else {
     ri.textContent = 'Preços não actualizados ainda';
   }
+  // Restore API key field
+  const keyEl = document.getElementById('inv-api-key');
+  const keyStatus = document.getElementById('inv-key-status');
+  if (keyEl) {
+    const stored = getInvApiKey();
+    if (stored) { keyEl.value = stored; keyStatus.textContent = '✓ guardada'; keyStatus.style.color = 'var(--grn)'; }
+  }
 }
 
 function invDelete(id) {
@@ -1586,6 +1608,13 @@ async function invRefreshPrices() {
   const p = getInvPortfolio();
   const tickers = [...new Set(p.assets.map(a => a.ticker).filter(Boolean))];
   if(!tickers.length) { showToast('Nenhum ativo com ticker definido'); return; }
+
+  const apiKey = getInvApiKey();
+  if (!apiKey) {
+    showToast('Introduz e guarda a tua chave API Anthropic primeiro', true);
+    document.getElementById('inv-api-key').focus();
+    return;
+  }
 
   document.getElementById('inv-loading').style.display = '';
   document.getElementById('btn-inv-refresh').disabled = true;
@@ -1608,7 +1637,12 @@ Usa os preços de mercado mais recentes disponíveis. Se não encontrares um tic
 
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1000,
@@ -1617,19 +1651,20 @@ Usa os preços de mercado mais recentes disponíveis. Se não encontrares um tic
       })
     });
 
+    if (!resp.ok) {
+      const err = await resp.json().catch(()=>({}));
+      throw new Error(err.error?.message || `HTTP ${resp.status}`);
+    }
+
     const data = await resp.json();
-    // Extract text from response (may include tool_use blocks)
     const text = (data.content || [])
       .filter(b => b.type === 'text')
       .map(b => b.text).join('');
 
-    // Parse JSON from response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if(!jsonMatch) throw new Error('Resposta inválida da IA');
     const priceData = JSON.parse(jsonMatch[0]);
 
-    // Convert prices to EUR if needed (simple conversion via another call if needed)
-    // For now store as-is with currency
     p.prices = {};
     for(const [ticker, info] of Object.entries(priceData)) {
       p.prices[ticker.toUpperCase()] = {
@@ -1665,8 +1700,6 @@ window.addEventListener('load', () => {
   const now = new Date();
   document.getElementById('sel-month').value = now.getMonth() + 1;
   document.getElementById('sel-year').value  = now.getFullYear();
-  updateTabLabel();
-
   // ── Dropzones ────────────────────────────────────────────────
   setupDZ('dz-cgd', 'f-cgd', 'st-cgd', 'CGD');
   setupDZ('dz-b2',  'f-b2',  'st-b2',  'B2');
@@ -1722,7 +1755,6 @@ window.addEventListener('load', () => {
         document.getElementById('flt-bank').appendChild(b2opt);
       }
 
-      updateTabLabel();
       renderTxns(); renderSummary();
 
       // AI categorization
@@ -1870,8 +1902,8 @@ window.addEventListener('load', () => {
   });
 
   // ── Selectors ─────────────────────────────────────────────────
-  document.getElementById('sel-year').addEventListener('change', () => { updateTabLabel(); if(accessToken) checkSheetAccess(); });
-  document.getElementById('sel-month').addEventListener('change', updateTabLabel);
+  document.getElementById('sel-year').addEventListener('change', () => { if(accessToken) checkSheetAccess(); });
+  document.getElementById('sel-month').addEventListener('change', () => {});
 
   // ── History ───────────────────────────────────────────────────
   // Manual field changes → re-render summary live
@@ -1909,130 +1941,6 @@ window.addEventListener('load', () => {
   });
 
   document.getElementById('btn-inv-refresh').addEventListener('click', invRefreshPrices);
-
-  // ── Auto-switch ───────────────────────────────────────────────
-  if (getHistory().length > 0) {
-    populateHistorySelect();
-    switchTab('dash');
-  } else {
-    switchTab('apur');
-  }
-
-
-  // ── tbody events ──────────────────────────────────────────────
-  document.getElementById('tbody').addEventListener('click', e => {
-    const qbtn = e.target.closest('.qbtn');
-    if (qbtn && !qbtn.classList.contains('ign-btn')) {
-      const id = qbtn.dataset.id, cat = qbtn.dataset.cat;
-      if (cat === '__more__') {
-        const sel = document.querySelector(`select.cat-sel[data-id="${id}"]`);
-        if (sel) { sel.style.opacity='1'; sel.style.pointerEvents='auto'; sel.focus(); }
-        return;
-      }
-      const t = txns.find(x => x.id === id);
-      if (t) { t.category=cat; t.status='c'; if(cat && cat!=='Ignorar / Transferência') learnRule(t.desc,cat); renderTxns(); renderSummary(); }
-      e.stopPropagation(); return;
-    }
-    if (e.target.matches('.health-submit-chk')) {
-      setHealthSubmitted(e.target.dataset.id, e.target.checked); renderTxns(); return;
-    }
-    if (!e.target.matches('button.ign-btn')) return;
-    const t = txns.find(x => x.id === e.target.dataset.id);
-    if (t) { t.category = t.category==='Ignorar / Transferência' ? '' : 'Ignorar / Transferência'; t.status = t.category ? 'c' : 'u'; renderTxns(); renderSummary(); }
-  });
-
-  document.getElementById('tbody').addEventListener('change', e => {
-    if (!e.target.matches('select.cat-sel')) return;
-    const t = txns.find(x => x.id === e.target.dataset.id);
-    if (t) { t.category=e.target.value; t.status='c'; if(t.category && t.category!=='Ignorar / Transferência') learnRule(t.desc,t.category); renderTxns(); renderSummary(); }
-  });
-
-  // ── Action buttons ────────────────────────────────────────────
-  document.getElementById('btn-conf-all').addEventListener('click', () => {
-    txns.filter(t => t.status==='a' && t.category).forEach(t => t.status='c');
-    renderTxns(); renderSummary(); showToast('Sugestões IA confirmadas');
-  });
-
-  document.getElementById('btn-rst-ign').addEventListener('click', () => {
-    txns.filter(t => t.category==='Ignorar / Transferência').forEach(t => { t.category=''; t.status='u'; });
-    renderTxns(); renderSummary();
-  });
-
-  document.getElementById('btn-write').addEventListener('click', async () => {
-    if (!accessToken) { tokenClient.requestAccessToken({prompt:''}); showToast('Liga primeiro ao Google', true); return; }
-    readManuals();
-    const catTotals = calcTotals();
-    const totals = {};
-    for (const [cat,v] of Object.entries(catTotals)) totals[cat] = v.net;
-    if (!Object.keys(totals).length) { showToast('Nenhuma categoria com dados', true); return; }
-    document.getElementById('write-load').style.display = 'flex';
-    document.getElementById('btn-write').disabled = true;
-    try {
-      const n = await writeToSheet(totals);
-      const m = parseInt(document.getElementById('sel-month').value), y = document.getElementById('sel-year').value;
-      const changes = window._lastWriteChanges || [];
-      const credited = changes.filter(c=>c.diff<0).length;
-      const msg = credited > 0
-        ? `✓ ${n} células atualizadas (${credited} com reembolso) — ${MONTH_NM[m]} ${y}`
-        : `✓ ${n} células atualizadas — ${MONTH_NM[m]} ${y}`;
-      showToast(msg); setSheetBar(true, msg); setStep(3);
-      const validated = txns.filter(t=>t.category&&t.category!=='Ignorar / Transferência').map(t=>({date:t.date,desc:t.desc,bank:t.bank,amount:t.amount,category:t.category}));
-      addToHistory(parseInt(m), parseInt(y), validated);
-      updateHistoryBadge(); populateHistorySelect();
-    } catch(e) {
-      showToast('Erro: ' + e.message, true); setSheetBar(false, 'Erro: ' + e.message);
-    }
-    document.getElementById('write-load').style.display = 'none';
-    document.getElementById('btn-write').disabled = false;
-  });
-
-  document.getElementById('btn-csv').addEventListener('click', () => {
-    const m = parseInt(document.getElementById('sel-month').value), y = document.getElementById('sel-year').value;
-    let csv = `Categoria;Linha;${MONTH_NM[m]} ${y}\n`;
-    const totals = calcTotals();
-    for (const [g,cats] of Object.entries(GROUPS)) for (const cat of cats) {
-      if (!totals[cat]) continue;
-      csv += `${cat};${ROW_MAP[cat]||''};${totals[cat].net.toFixed(2).replace('.',',')}\n`;
-    }
-    dl('\ufeff'+csv, `totais_${y}_${String(m).padStart(2,'0')}.csv`, 'text/csv;charset=utf-8');
-    showToast('CSV exportado');
-  });
-
-  document.getElementById('btn-health-flt').addEventListener('click', () => {
-    _healthFlt = !_healthFlt;
-    document.getElementById('btn-health-flt').classList.toggle('active', _healthFlt);
-    renderTxns();
-  });
-
-  // ── Filters ───────────────────────────────────────────────────
-  ['srch','flt-cat','flt-st','flt-bank'].forEach(id => {
-    document.getElementById(id).addEventListener('input', renderTxns);
-  });
-
-  document.getElementById('txn-thead').addEventListener('click', e => {
-    const th = e.target.closest('th.sortable');
-    if (!th) return;
-    const col = th.dataset.col;
-    if (_sortCol === col) _sortDir *= -1; else { _sortCol = col; _sortDir = 1; }
-    document.querySelectorAll('#txn-thead .sort-ico').forEach(el => el.textContent = '↕');
-    th.querySelector('.sort-ico').textContent = _sortDir === 1 ? '↑' : '↓';
-    renderTxns();
-  });
-
-  // ── Selectors ─────────────────────────────────────────────────
-  document.getElementById('sel-year').addEventListener('change', () => { updateTabLabel(); if(accessToken) checkSheetAccess(); });
-  document.getElementById('sel-month').addEventListener('change', updateTabLabel);
-
-  // ── History ───────────────────────────────────────────────────
-  // Manual field changes → re-render summary live
-  ['man-sub-nuno','man-sub-ana','man-fnas-nuno','man-fnas-ana',
-   'man-xtb','man-tr','man-rev','man-irs','man-outros'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el) el.addEventListener('input', () => { readManuals(); renderSummary(); });
-  });
-
-  document.getElementById('hist-srch').addEventListener('input', renderHistory);
-  document.getElementById('hist-cat-flt').addEventListener('change', renderHistory);
 
   // ── Auto-switch ───────────────────────────────────────────────
   if (getHistory().length > 0) {
